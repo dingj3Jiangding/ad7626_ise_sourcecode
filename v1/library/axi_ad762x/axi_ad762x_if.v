@@ -97,6 +97,7 @@ module axi_ad762x_if #(
   // data interface - differential to single ended
 
   ad_data_in #(
+    .IO_DELAY_ENABLE(0),
     .FPGA_TECHNOLOGY (FPGA_TECHNOLOGY),
     .IDDR_CLK_EDGE ("OPPOSITE_EDGE"),
     .IODELAY_CTRL (IODELAY_CTRL),
