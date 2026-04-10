@@ -7,6 +7,8 @@
 1. `01_ad7626_min_timing_gen.md`
 2. `02_ad7626_min_rx_core.md`
 3. `03_ad7626_min_loopback_top.md`
+4. `04_day1_pm_hw_bringup_plan.md`
+5. `05_datasheet_timing_fill_form.md`
 
 ## 本次文档风格
 

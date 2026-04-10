@@ -14,12 +14,19 @@
    - ISim 所需 `isim.prj` / `isim_run.tcl`。
 4. 补齐模块说明文档：
    - `v2/dev/doc/01~03` 已更新为“代码结合说明”风格。
+5. Day1 上午仿真验证通过（用户已在本地环境确认）。
+6. 已确认关键 datasheet 条件：
+   - MSB first。
+   - 无 dummy bit，frame 间 D=0。
+   - 每 frame 输出 16bit。
+   - CNV 上升沿触发转换，DCO 下降沿采样。
+   - 已定位关键时序符号：`tMSB`、`tCYC`、`tCNVH`、`tCLKL`。
 
 ## 尚未完成事项
 
-1. 在真实 ISE 14.7 环境完成一次 `make run` 验证。
-2. Day1 下午：接入真实板级 dco/data 输入，替换内部回环串行源。
-3. 新增板级最小顶层与约束模板（Spartan-6 引脚/时钟约束）。
+1. Day1 下午：接入真实板级 dco/data 输入，替换内部回环串行源。
+2. 新增板级最小顶层与约束模板（Spartan-6 引脚/时钟约束）。
+3. 补齐时序参数具体值（`tMSB`/`tCYC`/`tCNVH`/`tCLKL` min/typ/max 与 setup/hold 数值）。
 
 ## 推荐下一步执行顺序
 
