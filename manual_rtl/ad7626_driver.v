@@ -39,13 +39,13 @@ IBUFDS #(
       .IB(d_n)
    );
 
-//////// CLOCK INPUT //////
+//////// CLOCK INPUT /////////
 
-IBUFDS #(
+IBUFGDS #(
       .DIFF_TERM("FALSE"),       // Differential Termination
       .IBUF_LOW_PWR("TRUE"),     // Low power="TRUE", Highest performance="FALSE" 
       .IOSTANDARD("LVDS_25")     // Specify the input I/O standard
-   ) IBUFDS_DCO (
+   ) IBUFGDS_DCO (
       .O(dco_temp),
       .I(dco_p),
       .IB(dco_n)
