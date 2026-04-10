@@ -2,16 +2,16 @@
 
 module ad_data_in #(
   parameter   SINGLE_ENDED = 0,
-  parameter   FPGA_TECHNOLOGY = 0,      // 保留接口兼容
+  parameter   FPGA_TECHNOLOGY = 0,
   parameter   DDR_SDR_N = 1,
-  parameter   IDDR_CLK_EDGE ="SAME_EDGE", // 保留接口兼容
-  parameter   IDELAY_TYPE = "VAR_LOAD",   // 保留接口兼容
-  parameter   DELAY_FORMAT = "COUNT",     // 保留接口兼容
-  parameter   US_DELAY_TYPE = "VAR_LOAD", // 保留接口兼容
-  parameter   IODELAY_ENABLE = 1,         // 保留接口兼容
-  parameter   IODELAY_CTRL = 0,           // 保留接口兼容
-  parameter   IODELAY_GROUP = "dev_if_delay_group", // 保留接口兼容
-  parameter   REFCLK_FREQUENCY = 200      // 保留接口兼容
+  parameter   IDDR_CLK_EDGE ="SAME_EDGE",
+  parameter   IDELAY_TYPE = "VAR_LOAD",  
+  parameter   DELAY_FORMAT = "COUNT",    
+  parameter   US_DELAY_TYPE = "VAR_LOAD",
+  parameter   IODELAY_ENABLE = 1,        
+  parameter   IODELAY_CTRL = 0,          
+  parameter   IODELAY_GROUP = "dev_if_delay_group",
+  parameter   REFCLK_FREQUENCY = 200
 ) (
   // data interface
   input               rx_clk,
@@ -35,12 +35,10 @@ module ad_data_in #(
   wire rx_data_ibuf_s;
   wire rx_data_idelay_s;
 
-  // Spartan-6 最小实现：先旁路 delay 控制，后续再接 IODELAY2
   assign delay_locked   = 1'b1;
   assign up_drdata      = 5'd0;
   assign rx_data_idelay_s = rx_data_ibuf_s;
 
-  // 输入缓冲
   generate
   if (SINGLE_ENDED == 1) begin
     IBUF i_rx_data_ibuf (
@@ -56,7 +54,7 @@ module ad_data_in #(
   end
   endgenerate
 
-  // DDR/SDR 采样
+  // DDR/SDR Sampling
   generate
   if (DDR_SDR_N == 1'b1) begin
     IDDR2 #(
