@@ -1,4 +1,0 @@
-verilog work "../rtl/ad7626_min_timing_gen.v"
-verilog work "../rtl/ad7626_min_rx_core.v"
-verilog work "../rtl/ad7626_min_loopback_top.v"
-verilog work "../tb/tb_ad7626_min_loopback.v"
