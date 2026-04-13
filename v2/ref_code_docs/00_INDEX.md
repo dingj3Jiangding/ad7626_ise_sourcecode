@@ -20,6 +20,7 @@
 14. 14_regmap_clkgen.md
 15. 15_regmap_iodelay.md
 16. 16_driver_guide_usage.md
+17. 17_axi_clkgen_v.md
 
 ## 与总纲文档关系
 

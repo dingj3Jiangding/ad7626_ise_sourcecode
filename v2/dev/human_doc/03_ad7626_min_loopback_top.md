@@ -1,6 +1,6 @@
 # ad7626_min_loopback_top 结合代码说明
 
-对应源码：`v2/dev/rtl/ad7626_min_loopback_top.v`
+对应源码：`v2/dev/rtl/Day1-1/ad7626_min_loopback_top.v`
 
 这个模块是 Day1 上午最小闭环顶层，目标是把“发位流”和“收位流”放在同一个模块里自检。
 

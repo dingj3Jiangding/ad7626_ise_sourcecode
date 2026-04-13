@@ -14,11 +14,16 @@
    可直接复制给下一个大模型的启动提示词。
 5. `05_quick_commands.md`
    常用检查命令与最小验证命令。
+6. `AD7626_echoed_clock_interface_guide.md`
+   基于 AD7626 datasheet 的 echoed-clock 模式接口与时序摘要。
 
 ## 30 秒恢复上下文
 
 1. 本项目当前主开发区域是 `v2/dev`。
 2. `v2/ref` 是原版参考代码，只读参考，不在其中做新开发。
 3. 目标平台是 Spartan-6，工具链是 ISE 14.7。
-4. Day1 上午最小闭环代码已在 `v2/dev/rtl`、`v2/dev/tb`、`v2/dev/sim`。
-5. 模块讲解文档在 `v2/dev/doc`，已改成“代码片段 + 解释”风格。
+4. Day1 上午最小闭环代码已在 `v2/dev/rtl`、`v2/dev/tb`。
+5. Day1-2 的板级 echoed-clock 实现已经落在 `v2/dev/rtl/Day1-2/` 与 `v2/dev/constraints`。
+6. 模块讲解文档在 `v2/dev/human_doc`，已改成“代码片段 + 解释”风格。
+7. 当前默认 bring-up 口径不再是 `tCYC = 200 ns`，而是更保守的 `240 ns`。
+8. AD7626 echoed-clock 关键时序和 LVDS 规则在 `v2/llm_doc/AD7626_echoed_clock_interface_guide.md`。

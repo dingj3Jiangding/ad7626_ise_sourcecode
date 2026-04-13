@@ -1,6 +1,6 @@
 # ad7626_min_timing_gen 结合代码说明
 
-对应源码：`v2/dev/rtl/ad7626_min_timing_gen.v`
+对应源码：`v2/dev/rtl/Day1-1/ad7626_min_timing_gen.v`
 
 这个模块做一件事：在 `clk` 时钟域里，生成一帧采样的开始脉冲 `frame_start` 和位采样脉冲 `bit_tick`。
 

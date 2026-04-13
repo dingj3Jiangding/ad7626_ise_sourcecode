@@ -34,7 +34,7 @@ module ad7626_min_loopback_top #(
 
   wire serial_bit_s;
 
-  assign serial_bit_s    = tx_shift[SAMPLE_WIDTH-1];
+  assign serial_bit_s    = tx_shift[SAMPLE_WIDTH-1];        // 'MSB-first' take the highest bit of tx_shift
   assign serial_data_dbg = serial_bit_s;
 
   assign sample_valid    = sample_valid_s;
@@ -57,17 +57,19 @@ module ad7626_min_loopback_top #(
     .frame_busy(frame_busy_s)
   );
 
+
+// This part is creating a fake ADC for testing
   always @(posedge clk or negedge rstn) begin
     if (!rstn) begin
       tx_word           <= {{(SAMPLE_WIDTH-1){1'b0}}, 1'b1};
       tx_shift          <= {SAMPLE_WIDTH{1'b0}};
       expected_data_dbg <= {SAMPLE_WIDTH{1'b0}};
     end else begin
-      if (frame_start_s) begin
+      if (frame_start_s) begin              
         expected_data_dbg <= tx_word;
         tx_shift          <= tx_word;
-        tx_word           <= tx_word + 1'b1;
-      end
+        tx_word           <= tx_word + 1'b1;  // tx_word is a test sample, adding 1 to itself 
+      end                                     // for maintaining a unchanged(shifted) reference
 
       if (bit_tick_s) begin
         tx_shift <= {tx_shift[SAMPLE_WIDTH-2:0], 1'b0};
