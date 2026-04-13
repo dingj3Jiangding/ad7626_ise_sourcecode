@@ -1,6 +1,6 @@
 # ad7626_min_rx_core 结合代码说明
 
-对应源码：`v2/dev/rtl/ad7626_min_rx_core.v`
+对应源码：`v2/dev/rtl/Day1-1/ad7626_min_rx_core.v`
 
 这个模块是“串行位流 -> 并行样本”的核心接收器。
 

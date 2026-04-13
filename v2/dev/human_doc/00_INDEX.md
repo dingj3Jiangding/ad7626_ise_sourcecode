@@ -9,6 +9,10 @@
 3. `03_ad7626_min_loopback_top.md`
 4. `04_day1_pm_hw_bringup_plan.md`
 5. `05_datasheet_timing_fill_form.md`
+6. `06_day1_2_checkpoint_design.md`
+7. `07_ad7626_day1_2_timing_gen.md`
+8. `08_ad7626_s6_serial_capture.md`
+9. `09_ad7626_day1_2_board_top.md`
 
 ## 本次文档风格
 
@@ -24,6 +28,9 @@
 - `ad7626_min_timing_gen`：生成帧起始与位采样节拍。
 - `ad7626_min_rx_core`：按节拍接收串行位流并组帧输出。
 - `ad7626_min_loopback_top`：把时序发生器和接收核连接起来，并内置测试串行源做 Day1 数字闭环。
+- `ad7626_day1_2_timing_gen`：生成 AD7626 echoed-clock 读数周期的 `CNV` / `CLK` burst 窗口。
+- `ad7626_s6_serial_capture`：在 Spartan-6 上用 `DCO` 接收 `D` 并跨域输出 16bit 样本。
+- `ad7626_day1_2_board_top`：Day1-2 板级顶层，保留 fake/hw 双模式并导出上板调试信号。
 
 ## Day1 上午验证目标
 

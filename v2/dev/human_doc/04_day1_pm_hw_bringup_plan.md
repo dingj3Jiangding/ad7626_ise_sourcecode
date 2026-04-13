@@ -1,190 +1,213 @@
 # Day1 下午任务说明（硬件接入第一阶段）
 
-对应阶段：把 Day1 上午的纯数字回环，过渡到“真实板级输入”的最小可用链路。
+对应阶段：把 Day1 上午的纯数字 loopback，升级成可以真实上板验证的 AD7626 echoed-clock 最小板级链路。
 
 ## 1. 本阶段目标
 
-用最小改动实现以下闭环：
+这一阶段的目标不是做完整量产方案，而是先做出一个“真正按接口协议工作的第一版板级实现”。
 
-1. FPGA 仍生成采样节拍（`frame_start`、`bit_tick`）。
-2. 串行数据来源从内部 fake ADC 切换为板级真实输入。
-3. 接收链继续输出 `sample_valid`、`sample_data`、`sample_count`。
-4. 保留并扩展调试观测信号，便于 ILA 快速定位问题。
+完成后应具备下面闭环：
 
-一句话：先把“真板输入能跑起来”做通，再做更复杂优化。
+1. FPGA 产生 `CNV`。
+2. FPGA 产生 16 个 `CLK` burst。
+3. ADC 返回 `DCO` 和 `D`。
+4. FPGA 用 `DCO` 采样 `D`，收成 16bit。
+5. 系统侧能看到 `sample_valid`、`sample_data`、`sample_count`。
 
-## 2. Day1 下午完成定义（DoD）
+## 2. 本阶段完成定义（DoD）
 
 满足以下条件即可认为 Day1 下午完成：
 
-1. 能在板上观察到 `sample_valid` 周期出现。
-2. `sample_count` 持续递增，无长时间停滞。
-3. `align_error` 不持续触发（偶发可记录，但不能常态为 1）。
-4. 能通过 ILA 同时观测：
-   - `frame_start_dbg`
-   - `bit_tick_dbg`
-   - `serial_data_dbg`
-   - `sample_valid`
-   - `sample_count`
-5. 代码中保留 fake 模式开关，便于回退验证。
+1. 板上能观测到稳定的 `CNV` 周期。
+2. 板上能观测到只在 burst 窗口内活动的 `CLK`。
+3. ADC 能返回 `DCO` burst。
+4. `sample_valid` 周期出现。
+5. `sample_count` 持续递增。
+6. `align_error` 不能常态为 1。
+7. 代码保留 fake 模式，便于回退。
 
-## 3. 与 Day1 上午相比，具体改什么
+## 3. 当前实现方案
 
-当前文件：`v2/dev/rtl/ad7626_min_loopback_top.v`
+当前 Day1-2 已经采用下面这套结构：
 
-现在是内部生成测试数据：
+1. `ad7626_day1_2_timing_gen`
+   负责生成 `cnv`、`clk_gate`、`frame_start`、`read_start`、`read_done`。
+2. `ODDR2 + OBUFDS`
+   负责把 `sys_clk_250` 变成差分 `CLK±` burst 与差分 `CNV±`。
+3. `ad7626_s6_serial_capture`
+   负责用 `DCO` 做接收时钟，按 16bit 组帧。
+4. `ad7626_day1_2_board_top`
+   负责把发送链、接收链、fake/hw 模式和调试导出拼起来。
 
-- `tx_word` / `tx_shift` 产生 fake 串行流。
-- `serial_bit_s` 来自 `tx_shift[SAMPLE_WIDTH-1]`。
+## 4. 为什么这一步直接做 DCO 域采样
 
-Day1 下午要做的是：
+AD7626 echoed-clock 模式的关键规则是：
 
-1. 增加“数据源选择”机制：
-   - fake 源（保留）
-   - 硬件源（新增）
-2. 在硬件源模式下，把 `serial_in` 改为板级输入路径。
-3. 保留现有 `rx_core` 与计数/错误框架，先减少变量。
+1. `D` 在 `DCO` 下降沿更新。
+2. 主机应在 `DCO` 上升沿采样 `D`。
+3. `CLK` 空闲时必须保持低。
 
-## 4. 建议实现路线（先易后难）
+所以本阶段如果还继续用“把 `D` 先同步到系统时钟域”的占位法，250 MHz 下风险太高，也不再符合你现在要做“可上板验证”的要求。
 
-## 4.1 Step A：先做可切换数据源（必做）
+因此本阶段直接做：
 
-在 `ad7626_min_loopback_top.v` 增加参数或端口：
+1. 差分输入缓冲
+2. `IDDR2` 边界采样
+3. DCO 域 16bit 组帧
+4. 轻量跨域回 `sys_clk_250`
 
-- 参数示例：`DATA_SRC_SEL`（0=fake，1=hw）
-- 或端口示例：`input wire use_hw_data`
+## 5. 当前 bring-up 参数与评估
 
-并做 MUX：
+## 5.1 你当前一直在讨论的参数
 
-```verilog
-assign serial_bit_s = (use_hw_data) ? serial_hw_s : tx_shift[SAMPLE_WIDTH-1];
+目前我们一直围绕下面这组数值讨论：
+
+1. `tCYC = 200 ns`
+2. `tCNVH = 20 ns`
+3. `tMSB = 100 ns`
+4. `tCLK = 4 ns`
+5. `tCLKL = 60 ns`
+
+## 5.2 这组数值里真正有问题的地方
+
+最需要警惕的是 `tCYC = 200 ns`。
+
+如果按：
+
+1. `tMSB = 100 ns`
+2. 16 个 `CLK`，每个 `4 ns`
+
+那么读数 burst 总长度就是：
+
+```text
+16 x 4 ns = 64 ns
 ```
 
-目标：不改 testbench 也能继续跑 fake 模式，硬件联调时再切到 hw 模式。
+从 `CNV` 到 burst 结束的总长度就是：
 
-## 4.2 Step B：硬件输入先做“最小同步版”（Day1 下午建议）
+```text
+100 ns + 64 ns = 164 ns
+```
 
-新增板级输入端口（先单端占位，后续可升级差分）：
+如果整个周期只有 `200 ns`，那余量只剩：
 
-- `adc_data_in`
-- `adc_dco_in`（先用于观测，不一定立刻参与采样决策）
+```text
+200 ns - 164 ns = 36 ns
+```
 
-最小同步法（用于 bring-up）：
+这个 `36 ns`：
 
-1. 在 `clk` 域对 `adc_data_in` 做两级同步，得到 `serial_hw_s`。
-2. `rx_core` 仍按 `bit_tick_s` 移位接收。
+1. 小于你当前先采用的 `tCLKL = 60 ns`
+2. 也小于文档里更保守的 `72 ns`
+
+所以：
+
+1. `200 ns` 不是一个好的默认 bring-up 周期。
+2. 至少在当前理解下，它不够保守。
+
+## 5.3 当前代码采用的默认值
+
+为了提高 first bring-up 成功率，当前代码默认改成：
+
+| 项目 | 周期数 | 时间 |
+|---|---:|---:|
+| `CNV_PERIOD_CYCLES` | 60 | 240 ns |
+| `CNV_HIGH_CYCLES` | 5 | 20 ns |
+| `MSB_WAIT_CYCLES` | 25 | 100 ns |
+| `READ_PULSE_CYCLES` | 16 | 64 ns |
+| post-read guard | 19 | 76 ns |
+
+这样做的理由：
+
+1. `20 ns` 落在 `tCNVH` 合法窗口内。
+2. `100 ns` 对应当前 `tMSB` 假设。
+3. burst 后还保留 `76 ns` 保护窗口，更接近保守 bring-up 需要。
+
+## 5.4 当前我对参数的结论
+
+建议你把这组值作为 Day1-2 默认：
+
+1. `tCYC = 240 ns`
+2. `tCNVH = 20 ns`
+3. `tMSB = 100 ns`
+4. `tCLK = 4 ns`
+5. `tCLKL` 继续按 `60 ns ~ 72 ns` 风险项对待
+
+也就是说：
+
+1. `tCNVH` 没问题。
+2. `tMSB` 没问题。
+3. `tCLK = 4 ns` 没问题。
+4. 主要问题是 `tCYC = 200 ns` 太紧。
+
+## 6. 当前 I/O 电平标准结论
+
+当前仍采用你之前从参考工程 `system_constr.xdc` 提取出来的电平标准，作为 first bring-up 检查依据：
+
+1. `dco_p/n`：`LVDS_25`
+2. `d_p/n`：`LVDS_25`
+3. `clk_p/n`：`LVDS_25`
+4. `cnv_p/n`：`LVDS_25`
+5. 板级使能脚如果有：`LVCMOS25`
 
 说明：
 
-- 这个方法实现最快，适合 Day1 下午先看链路“有无生命体征”。
-- 该方法不是最终高速稳态方案，后续需升级到 dco 域采样。
+1. 这是当前 Day1-2 RTL 的默认假设。
+2. 如果你的板子上 `CNV` 其实是单端 2.5 V CMOS，而不是差分 LVDS，就需要再改 top 和约束模板。
 
-## 4.3 Step C：增加硬件联调观测点（必做）
+## 7. 当前还缺什么外部条件
 
-建议增加这些 debug 输出：
+除了 RTL 本身，Day1-2 还依赖下面两项你来补板级信息：
 
-1. `adc_data_sync_dbg`（同步后的硬件数据）
-2. `adc_dco_sync_dbg`（同步后的 dco）
-3. `hw_mode_dbg`（当前是否硬件模式）
-4. `bit_tick_count_dbg`（可选，统计位脉冲数量）
+1. `sys_clk_250` 从哪来
+2. 实际引脚 `LOC`
 
-目的：让 ILA 一眼看出是“没进数据”还是“进了但组帧错”。
+第 1 点说明：
 
-## 4.4 Step D：预留下一阶段接口（建议）
+当前 top 假定已经有稳定的 `250 MHz` 系统时钟。  
+如果你板子的晶振不是 `250 MHz`，需要在更外层先做一个 DCM/PLL wrapper 生成 `sys_clk_250`。
 
-下一阶段（Day2）会做更稳妥的 dco 域采样，建议现在先预留文件名和模块边界：
+第 2 点说明：
 
-- `v2/dev/rtl/ad7626_s6_serial_capture.v`（预留）
+我已经补了一个 `UCF` 模板：
 
-职责预期：
+`v2/dev/constraints/ad7626_day1_2_board_top_template.ucf`
 
-1. 在 dco 域移位采样 18bit。
-2. 通过握手把完整字送到 `clk` 域。
-3. 在 `clk` 域产生 `sample_valid_hw`。
+你只需要按原理图补：
 
-## 5. 代码改动建议清单（文件级）
+1. `sys_clk_250`
+2. `dco_p/n`
+3. `d_p/n`
+4. `clk_p/n`
+5. `cnv_p/n`
 
-Day1 下午建议只改 1~2 个文件：
+## 8. 建议的上板检查顺序
 
-1. `v2/dev/rtl/ad7626_min_loopback_top.v`
-   - 增加硬件输入端口/模式选择。
-   - 增加同步寄存器和 debug 输出。
-   - fake 路径保留。
-2. `v2/dev/doc/03_ad7626_min_loopback_top.md`
-   - 补“fake/hw 双模式”说明。
+建议先按这个顺序排查：
 
-可选：
+1. 看 `sys_clk_250` 是否正确。
+2. 看 `CNV` 周期是否正确。
+3. 看 `CLK` 是否只在 burst 窗口活动、空闲保持低。
+4. 看 ADC 是否回 `DCO`。
+5. 看 `D` 是否在 burst 期间有活动。
+6. 看 `sample_valid`。
+7. 看 `sample_count`。
 
-3. 新增 `v2/dev/doc/05_day1_pm_bringup_checklist.md`
-   - 记录每次板上测试结果与参数。
+## 9. 典型失败现象与快速定位
 
-## 6. 你需要补充的 Datasheet / 板卡信息清单
+1. 没有 `DCO`
+   大概率先查 ADC 模式脚、供电、参考模式、板级连线。
+2. `DCO` 有，但 `sample_valid` 不稳定
+   优先查 DCO 接收路径和约束。
+3. `sample_valid` 有，但 `align_error` 常亮
+   优先查 burst 长度、帧边界、是否丢了某个 DCO 边沿。
+4. fake 模式正常，hw 模式异常
+   说明系统侧计数框架基本没问题，重点回到板级 I/O 与 ADC 接口时序。
 
-以下信息建议你先补齐，补齐后硬件接入会更稳：
+## 10. 结论
 
-## 6.0 已从 Datasheet 确认的信息（2026-04-10）
+Day1 下午的核心不是“随便让板上有点波形”，而是：
 
-以下条目已确认，可直接用于 Day1 下午实现：
-
-1. 位序：MSB first。
-2. 无 dummy bit，frame 之间 D=0。
-3. 每个 CNV frame 输出 16bit 数据。
-4. CNV 到第一位出现延迟：`tMSB`。
-5. CNV 周期：`tCYC`。
-6. CNV 上升沿触发转换，且在 `tCNVH` 内需拉回低电平。
-7. CNV 结束节点到最后一位（LSB）时间：`tCLKL`。
-8. DCO 下降沿采样 D。
-
-对 RTL 的直接影响：
-
-1. `SAMPLE_WIDTH` 应按 16 先做 bring-up 配置（后续若模式变化再参数化扩展）。
-2. 接收逻辑按 MSB-first 组织，无需 dummy bit 丢弃流程。
-3. 采样边沿在 dco 下降沿，Day2 进入 dco 域采样时要严格按该边沿实现。
-
-## 6.1 仍需补齐的必须项（没有就容易走弯路）
-
-1. `tMSB` / `tCYC` / `tCNVH` / `tCLKL` 的具体数值（min/typ/max）。
-2. DCO 下降沿采样对应的 setup/hold 具体数值（min/typ/max）。
-3. 数据有效窗口在当前目标采样率下的裕量评估。
-4. 板级引脚映射：
-   - ADC 到 Spartan-6 的实际引脚名
-   - 单端/差分连接方式
-5. I/O 电平标准：
-   - LVDS / LVCMOS 电平
-   - 对应 ISE 约束中的 `IOSTANDARD`
-
-## 6.2 建议项（影响后续稳定性）
-
-1. 最大目标采样率与当前时钟规划。
-2. 板上终端/阻抗网络（是否外部已终端）。
-3. 复位后 ADC 初始化要求（上电等待、模式脚配置）。
-4. 可用于验证的已知输入信号（直流、低频正弦、基准电压）。
-
-## 7. 板上联调时的最小检查顺序
-
-1. 先确认 `frame_start_dbg` 与 `bit_tick_dbg` 正常。
-2. 再看 `serial_data_dbg` 是否有翻转活动。
-3. 再看 `sample_valid` 是否按帧出现。
-4. 最后看 `sample_count` 是否连续增长。
-5. 若增长但数据异常，再检查位序/采样边沿。
-
-## 8. 典型失败现象与快速定位
-
-1. `sample_valid` 无脉冲：
-   - 优先检查 `bit_tick` 是否产生、`frame_start` 是否被触发。
-2. `sample_count` 不增长：
-   - 检查 `rx_core` 是否收到连续位流。
-3. `align_error` 常态为 1：
-   - 帧与位节拍关系不对，或切换模式后时序断裂。
-4. 数据跳变离散但无规律：
-   - 大概率是异步采样导致，需升级到 dco 域采样方案。
-
-## 9. 结论
-
-Day1 下午不是追求“最终高速最优实现”，而是追求：
-
-1. 真板输入接通。
-2. 调试观测完整。
-3. 代码可回退（fake/hw 双模式）。
-
-做到这三点，Day2 再做 dco 域稳态优化会非常顺畅。
+1. 先做一个最小但真实的 echoed-clock 板级版本。
+2. 默认参数偏保守，优先保成功率。
+3. 把 `tCYC = 200 ns` 这个风险点先避开。
