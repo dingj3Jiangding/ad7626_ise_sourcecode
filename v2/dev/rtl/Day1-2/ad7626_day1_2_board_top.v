@@ -2,6 +2,7 @@
 
 module ad7626_day1_2_board_top #(
   parameter integer SAMPLE_WIDTH        = 16,
+  parameter integer BIT_COUNT_WIDTH   = 6,
   parameter integer COUNTER_WIDTH       = 32,
   parameter integer DATA_SRC_SEL        = 1,
   parameter integer CNV_PERIOD_CYCLES   = 25,
@@ -41,7 +42,13 @@ module ad7626_day1_2_board_top #(
   output wire                         adc_dco_dbg,
   output wire                         cnv_dbg,
   output wire [15:0]                  phase_dbg,
-  output wire [SAMPLE_WIDTH-1:0]      expected_data_dbg
+  output wire [SAMPLE_WIDTH-1:0]      expected_data_dbg,
+  
+  // timing debug signal 2026.4.16
+  output wire [SAMPLE_WIDTH-1:0]			sample_word_dco_dbg,
+  output wire 							data_rise_dbg,
+  output wire [BIT_COUNT_WIDTH-1:0] bit_count_dco_dbg,
+  output wire [SAMPLE_WIDTH-1:0] shift_reg_dco_dbg
 ) ;
 
   wire                        hw_mode_s;
@@ -126,7 +133,13 @@ module ad7626_day1_2_board_top #(
     .sample_valid(hw_sample_valid_s),
     .sample_data(hw_sample_data_s),
     .dco_dbg(hw_dco_dbg_s),
-    .data_dbg(hw_data_dbg_s)
+    .data_dbg(hw_data_dbg_s),
+	 
+	 // timing debug signal 2026.4.16
+	 .sample_word_dco_dbg(sample_word_dco_dbg),
+	 .data_rise_dbg(data_rise_dbg),
+	 .bit_count_dco_dbg(bit_count_dco_dbg),
+	 .shift_reg_dco_dbg(shift_reg_dco_dbg)
   );
 
   ODDR2 #(

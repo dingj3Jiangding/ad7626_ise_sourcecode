@@ -15,7 +15,13 @@ module ad7626_s6_serial_capture #(
   output reg                      sample_valid,
   output reg  [SAMPLE_WIDTH-1:0]  sample_data,
   output wire                     dco_dbg,
-  output wire                     data_dbg
+  output wire                     data_dbg,
+
+//timing debug singal 2026.4.16
+  output wire [SAMPLE_WIDTH-1:0] sample_word_dco_dbg,
+  output wire 							data_rise_dbg,
+  output wire [BIT_COUNT_WIDTH-1:0] bit_count_dco_dbg,
+  output wire [SAMPLE_WIDTH-1:0] shift_reg_dco_dbg
 );
 
   wire                    dco_clk_s;
@@ -32,6 +38,10 @@ module ad7626_s6_serial_capture #(
   reg   [SAMPLE_WIDTH-1:0] sample_word_meta;
   reg   [SAMPLE_WIDTH-1:0] sample_word_sync;
   reg                      drop_first_pending;
+  
+  assign data_rise_dbg = data_rise_s;
+  assign shift_reg_dco_dbg = shift_reg_dco;
+  assign bit_count_dco_dbg = bit_count_dco;
 
   IBUFGDS #(
     .DIFF_TERM(DIFF_TERM),
@@ -82,7 +92,7 @@ module ad7626_s6_serial_capture #(
       bit_count_dco      <= {BIT_COUNT_WIDTH{1'b0}};
       sample_toggle_dco  <= 1'b0;
     end else begin
-      shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};    // setup timing failed
+      shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
 
       if (bit_count_dco == (SAMPLE_WIDTH - 1)) begin
         sample_word_dco   <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};    // due to the Characteristics of the <=, this is not shifting 2 times
@@ -94,7 +104,8 @@ module ad7626_s6_serial_capture #(
     end
   end
 
-
+	assign sample_word_dco_dbg = sample_word_dco;
+	
   // Cross Clock Domain transfer
   always @(posedge sys_clk or negedge rstn) begin
     if (!rstn) begin
