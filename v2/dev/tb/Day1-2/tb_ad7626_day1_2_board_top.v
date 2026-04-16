@@ -159,6 +159,7 @@ module tb_ad7626_day1_2_board_top;
   wire                        cnv_dbg;
   wire [15:0]                 phase_dbg;
   wire [SAMPLE_WIDTH-1:0]     expected_data_dbg;
+  wire [SAMPLE_WIDTH-1:0]	  sample_word_dco_dbg;
 
   reg  [SAMPLE_WIDTH-1:0]     pending_word_r;
   reg  [SAMPLE_WIDTH-1:0]     active_shift_word_r;
@@ -213,7 +214,14 @@ module tb_ad7626_day1_2_board_top;
     .adc_dco_dbg(adc_dco_dbg),
     .cnv_dbg(cnv_dbg),
     .phase_dbg(phase_dbg),
-    .expected_data_dbg(expected_data_dbg)
+    .expected_data_dbg(expected_data_dbg),
+	 .sample_word_dco_dbg(sample_word_dco_dbg)
+	 
+	 // timing debug signal 2026.4.16
+	 .sample_word_dco_dbg(sample_word_dco_dbg),
+	 .data_rise_dbg(data_rise_dbg),
+	 .bit_count_dco_dbg(bit_count_dco_dbg),
+	 .shift_reg_dco_dbg(shift_reg_dco_dbg)
   );
 
   initial begin
@@ -268,7 +276,7 @@ module tb_ad7626_day1_2_board_top;
       pending_valid_r <= 1'b1;
     end
   end
-
+	
   always @(posedge read_start_dbg or negedge clk_p or negedge rstn) begin
     if (!rstn) begin
       active_shift_word_r <= {SAMPLE_WIDTH{1'b0}};
