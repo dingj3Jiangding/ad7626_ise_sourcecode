@@ -22,7 +22,7 @@ TIMESPEC "TS_SYS_CLK_100" = PERIOD "TNM_SYS_CLK_100" 10 ns HIGH 50%;
 # AD7626 LVDS inputs
 # ------------------------------------------------------------
 NET "dco_p" LOC = "W12";
-NET "dco_n" LOC = "Y2";
+NET "dco_n" LOC = "Y12";
 NET "dco_p" IOSTANDARD = LVDS_25;
 NET "dco_n" IOSTANDARD = LVDS_25;
 
