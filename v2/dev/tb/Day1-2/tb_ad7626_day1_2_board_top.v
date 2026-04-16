@@ -124,11 +124,14 @@ module tb_ad7626_day1_2_board_top;
 
   localparam integer SAMPLE_WIDTH              = 16;
   localparam integer TARGET_VALID_SAMPLES      = 16;
-  localparam integer CNV_PERIOD_CYCLES         = 60;
+  localparam integer CNV_PERIOD_CYCLES         = 25;
   localparam integer CNV_HIGH_CYCLES           = 5;
-  localparam integer MSB_WAIT_CYCLES           = 25;
+  localparam integer MSB_WAIT_CYCLES           = 15;
+  localparam integer READ_START_CYCLES         = 15;
   localparam integer READ_PULSE_CYCLES         = 16;
-  localparam integer POST_READ_GUARD_MIN_CYCLES = 18;
+  localparam integer TCLKL_CYCLES              = 10;
+  localparam integer READ_HEAD_CYCLES          = CNV_PERIOD_CYCLES - READ_START_CYCLES;
+  localparam integer READ_TAIL_CYCLES          = READ_PULSE_CYCLES - READ_HEAD_CYCLES;
 
   reg                         sys_clk_250;
   reg                         rstn;
@@ -158,9 +161,9 @@ module tb_ad7626_day1_2_board_top;
   wire [SAMPLE_WIDTH-1:0]     expected_data_dbg;
 
   reg  [SAMPLE_WIDTH-1:0]     adc_shift_word_r;
+  reg  [SAMPLE_WIDTH-1:0]     next_cycle_word_r;
   reg  [SAMPLE_WIDTH-1:0]     next_valid_word_r;
-  reg  [SAMPLE_WIDTH-1:0]     load_word_v;
-  reg                         adc_first_invalid_r;
+  reg                         adc_first_conversion_invalid_r;
   integer                     adc_negedge_count_r;
 
   integer                     frame_index_r;
@@ -179,8 +182,9 @@ module tb_ad7626_day1_2_board_top;
     .CNV_PERIOD_CYCLES(CNV_PERIOD_CYCLES),
     .CNV_HIGH_CYCLES(CNV_HIGH_CYCLES),
     .MSB_WAIT_CYCLES(MSB_WAIT_CYCLES),
+    .READ_START_CYCLES(READ_START_CYCLES),
     .READ_PULSE_CYCLES(READ_PULSE_CYCLES),
-    .POST_READ_GUARD_MIN_CYCLES(POST_READ_GUARD_MIN_CYCLES),
+    .TCLKL_CYCLES(TCLKL_CYCLES),
     .DROP_FIRST_SAMPLE(1)
   ) dut (
     .sys_clk_250(sys_clk_250),
@@ -238,30 +242,35 @@ module tb_ad7626_day1_2_board_top;
   end
 
   // Simplified AD7626 behavioral model for echoed-clock mode:
-  // 1. CNV rising edge loads the next conversion word.
-  // 2. DCO is modeled as an echoed copy of CLK.
-  // 3. D is valid before each rising DCO edge and updates on falling DCO edge.
+  // 1. Cycle N launches conversion N on CNV rising.
+  // 2. Phase 15..24 of cycle N shifts the first 10 bits of sample N.
+  // 3. Phase 0..5 of cycle N+1 shifts the last 6 bits of sample N.
+  // 4. The first conversion result after reset is invalid.
+  // 5. DCO is modeled as an echoed copy of CLK.
+  // 6. D is valid before each rising DCO edge and updates on falling DCO edge.
   always @(posedge cnv_p or negedge rstn) begin
     if (!rstn) begin
       adc_shift_word_r    <= {SAMPLE_WIDTH{1'b0}};
+      next_cycle_word_r   <= {{(SAMPLE_WIDTH-1){1'b0}}, 1'b1};
       next_valid_word_r   <= {{(SAMPLE_WIDTH-1){1'b0}}, 1'b1};
-      adc_first_invalid_r <= 1'b1;
+      adc_first_conversion_invalid_r <= 1'b1;
       adc_negedge_count_r <= SAMPLE_WIDTH;
       d_p_r               <= 1'b0;
       d_n_r               <= 1'b1;
     end else begin
-      if (adc_first_invalid_r) begin
-        load_word_v = 16'hDEAD;
-        adc_first_invalid_r <= 1'b0;
+      if (adc_first_conversion_invalid_r) begin
+        adc_shift_word_r    <= 16'hDEAD;
+        d_p_r               <= 1'b1;
+        d_n_r               <= 1'b0;
+        adc_first_conversion_invalid_r <= 1'b0;
       end else begin
-        load_word_v = next_valid_word_r;
-        next_valid_word_r <= next_valid_word_r + 1'b1;
+        adc_shift_word_r    <= next_cycle_word_r;
+        d_p_r               <= next_cycle_word_r[SAMPLE_WIDTH-1];
+        d_n_r               <= ~next_cycle_word_r[SAMPLE_WIDTH-1];
+        next_cycle_word_r   <= next_valid_word_r + 1'b1;
+        next_valid_word_r   <= next_valid_word_r + 1'b1;
       end
-
-      adc_shift_word_r    <= load_word_v;
       adc_negedge_count_r <= 0;
-      d_p_r               <= load_word_v[SAMPLE_WIDTH-1];
-      d_n_r               <= ~load_word_v[SAMPLE_WIDTH-1];
     end
   end
 
@@ -309,6 +318,12 @@ module tb_ad7626_day1_2_board_top;
       end
 
       if (frame_start_dbg) begin
+        if (phase_dbg != 16'd0) begin
+          $display("[TB][FAIL] frame_start asserted at phase=%0d instead of 0.",
+                   phase_dbg);
+          $finish;
+        end
+
         if (frame_index_r != 0) begin
           if (cnv_high_cycles_seen_r != CNV_HIGH_CYCLES) begin
             $display("[TB][FAIL] CNV high count mismatch: got %0d expected %0d on frame %0d",
@@ -334,6 +349,24 @@ module tb_ad7626_day1_2_board_top;
         if (clk_gate_dbg) begin
           clk_gate_cycles_seen_r = clk_gate_cycles_seen_r + 1;
         end
+      end
+
+      if (read_start_dbg && (phase_dbg != READ_START_CYCLES[15:0])) begin
+        $display("[TB][FAIL] read_start asserted at phase=%0d expected %0d.",
+                 phase_dbg, READ_START_CYCLES);
+        $finish;
+      end
+
+      if (read_done_dbg && (phase_dbg != READ_TAIL_CYCLES[15:0])) begin
+        $display("[TB][FAIL] read_done asserted at phase=%0d expected %0d.",
+                 phase_dbg, READ_TAIL_CYCLES);
+        $finish;
+      end
+
+      if (clk_gate_dbg !== ((phase_dbg >= READ_START_CYCLES[15:0]) ||
+                            (phase_dbg < READ_TAIL_CYCLES[15:0]))) begin
+        $display("[TB][FAIL] clk_gate mismatch at phase=%0d.", phase_dbg);
+        $finish;
       end
 
       if (sample_valid) begin

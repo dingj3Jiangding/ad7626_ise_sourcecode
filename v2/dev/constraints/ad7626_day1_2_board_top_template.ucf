@@ -1,5 +1,5 @@
 # ============================================================
-# ad7626_day1_2_board_top UCF template
+# ad7626_day1_2_board_top_100m UCF template
 # Target flow: Spartan-6 + ISE 14.7
 # Fill in the LOC values according to your board schematic.
 # ============================================================
@@ -7,24 +7,27 @@
 # ------------------------------------------------------------
 # System clock
 # ------------------------------------------------------------
-# If your board oscillator is not 250 MHz, place the PLL/DCM in a wrapper first
-# and apply the 4 ns period to the generated sys_clk_250 net instead.
-# If sys_clk_250 really comes from a package pin, add the matching board-specific
-# IOSTANDARD here after checking the oscillator voltage and the target bank VCCO.
-NET "sys_clk_250" LOC = "<TODO_SYS_CLK_PIN>";
-NET "sys_clk_250" TNM_NET = "TNM_SYS_CLK_250";
-TIMESPEC "TS_SYS_CLK_250" = PERIOD "TNM_SYS_CLK_250" 4 ns HIGH 50%;
+# This template now assumes the synthesis top is:
+#   ad7626_day1_2_board_top_100m
+# The board oscillator enters as sys_clk_100 and is converted inside FPGA
+# to the 250 MHz fabric/read clock used by the Day1-2 core.
+
+NET "sys_clk_100" LOC = "C11";
+NET "sys_clk_100" IOSTANDARD = LVCMOS33;
+NET "sys_clk_100" TNM_NET = "TNM_SYS_CLK_100";
+TIMESPEC "TS_SYS_CLK_100" = PERIOD "TNM_SYS_CLK_100" 10 ns HIGH 50%;
+
 
 # ------------------------------------------------------------
 # AD7626 LVDS inputs
 # ------------------------------------------------------------
-NET "dco_p" LOC = "<TODO_DCO_P_PIN>";
-NET "dco_n" LOC = "<TODO_DCO_N_PIN>";
+NET "dco_p" LOC = "W12";
+NET "dco_n" LOC = "Y2";
 NET "dco_p" IOSTANDARD = LVDS_25;
 NET "dco_n" IOSTANDARD = LVDS_25;
 
-NET "d_p" LOC = "<TODO_D_P_PIN>";
-NET "d_n" LOC = "<TODO_D_N_PIN>";
+NET "d_p" LOC = "AA2";
+NET "d_n" LOC = "AB2";
 NET "d_p" IOSTANDARD = LVDS_25;
 NET "d_n" IOSTANDARD = LVDS_25;
 
@@ -36,13 +39,13 @@ TIMESPEC "TS_ADC_DCO" = PERIOD "TNM_ADC_DCO" 4 ns HIGH 50%;
 # ------------------------------------------------------------
 # AD7626 LVDS outputs
 # ------------------------------------------------------------
-NET "clk_p" LOC = "<TODO_CLK_P_PIN>";
-NET "clk_n" LOC = "<TODO_CLK_N_PIN>";
+NET "clk_p" LOC = "AA12";
+NET "clk_n" LOC = "AB12";
 NET "clk_p" IOSTANDARD = LVDS_25;
 NET "clk_n" IOSTANDARD = LVDS_25;
 
-NET "cnv_p" LOC = "<TODO_CNV_P_PIN>";
-NET "cnv_n" LOC = "<TODO_CNV_N_PIN>";
+NET "cnv_p" LOC = "Y13";
+NET "cnv_n" LOC = "AB13";
 NET "cnv_p" IOSTANDARD = LVDS_25;
 NET "cnv_n" IOSTANDARD = LVDS_25;
 
@@ -50,7 +53,7 @@ NET "cnv_n" IOSTANDARD = LVDS_25;
 # Notes
 # ------------------------------------------------------------
 # 1. This template assumes CNV is implemented as an LVDS pair, matching the
-#    current Day1-2 RTL top. If your board wires CNV as single-ended 2.5 V CMOS,
+#    current Day1-2 RTL core/wrapper. If your board wires CNV as single-ended 2.5 V CMOS,
 #    replace the differential CNV ports in RTL and update this UCF.
 # 2. The RTL currently requests DIFF_TERM inside the input buffer primitives.
 #    If your chosen Spartan-6 package/bank requires DIFF_TERM in UCF instead,

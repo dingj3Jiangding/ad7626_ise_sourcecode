@@ -18,12 +18,14 @@
    - `tb_ad7626_day1_2_board_top`
 4. `v2/dev/human_doc` 已经更新到当前实现版，说明不再是旧的“两级同步占位方案”。
 5. 已确认并写入当前默认 bring-up 取值：
-   - `tCYC = 240 ns`
+   - `tCYC = 100 ns`
    - `tCNVH = 20 ns`
    - `tMSB = 100 ns`
    - `tCLK = 4 ns`
+   - `READ_START = cycle(N+1) + 20 ns`
 6. 已明确参数风险：
-   - `tCYC = 200 ns` 在当前 `tMSB = 100 ns`、16 个 `CLK`、`tCLK = 4 ns` 的理解下过紧，不适合作为默认值。
+   - 之前把 `tMSB` 和 16 个 `CLK` 塞进同一个 `tCYC` 的理解是错误的。
+   - 当前默认实现改成“下一拍固定读窗读上一拍结果”。
 
 ## 当前实现的真实边界
 
@@ -31,6 +33,7 @@
 2. 顶层目前假设外部已经提供干净的 `sys_clk_250`。
 3. `CNV` 当前按差分 LVDS 输出实现。
 4. fake/hw 双模式保留，方便回退。
+5. `board_top` 现在用 stage + pending queue 跟踪“conversion 启动”和“sample 真正返回”之间的一拍错位关系。
 
 ## 尚未完成事项
 

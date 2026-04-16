@@ -4,11 +4,12 @@ module ad7626_day1_2_board_top #(
   parameter integer SAMPLE_WIDTH        = 16,
   parameter integer COUNTER_WIDTH       = 32,
   parameter integer DATA_SRC_SEL        = 1,
-  parameter integer CNV_PERIOD_CYCLES   = 60,
+  parameter integer CNV_PERIOD_CYCLES   = 25,
   parameter integer CNV_HIGH_CYCLES     = 5,
-  parameter integer MSB_WAIT_CYCLES     = 25,
+  parameter integer MSB_WAIT_CYCLES     = 15,
+  parameter integer READ_START_CYCLES   = 15,
   parameter integer READ_PULSE_CYCLES   = 16,
-  parameter integer POST_READ_GUARD_MIN_CYCLES = 18,
+  parameter integer TCLKL_CYCLES        = 10,
   parameter integer DROP_FIRST_SAMPLE   = 1,
   parameter         DIFF_TERM           = "TRUE"
 ) (
@@ -23,11 +24,14 @@ module ad7626_day1_2_board_top #(
   output wire                         clk_n,
   output wire                         cnv_p,
   output wire                         cnv_n,
+
   output wire                         sample_valid,
   output wire [SAMPLE_WIDTH-1:0]      sample_data,
   output wire [COUNTER_WIDTH-1:0]     sample_count,
   output wire                         align_error,
   output wire                         mismatch_error,
+    
+  // Debug signal
   output wire                         frame_start_dbg,
   output wire                         read_start_dbg,
   output wire                         clk_gate_dbg,
@@ -56,8 +60,6 @@ module ad7626_day1_2_board_top #(
   wire                        clk_out_s;
   wire                        cnv_out_s;
 
-  reg                         fake_sample_valid_s;
-  reg  [SAMPLE_WIDTH-1:0]     fake_sample_data_s;
   reg  [COUNTER_WIDTH-1:0]    sample_count_r;
   reg                         align_error_r;
   reg                         mismatch_error_r;
@@ -65,8 +67,10 @@ module ad7626_day1_2_board_top #(
   reg  [SAMPLE_WIDTH-1:0]     sample_data_r;
   reg  [SAMPLE_WIDTH-1:0]     tx_word_r;
   reg  [SAMPLE_WIDTH-1:0]     tx_shift_r;
-  reg  [SAMPLE_WIDTH-1:0]     expected_data_r;
-  reg                         sample_pending_r;
+  reg  [SAMPLE_WIDTH-1:0]     start_word_r;
+  reg  [SAMPLE_WIDTH-1:0]     finish_word_r;
+  reg                         start_valid_r;
+  reg                         finish_valid_r;
   reg                         ignore_first_frame_r;
 
   assign hw_mode_s         = (DATA_SRC_SEL != 0);
@@ -78,8 +82,10 @@ module ad7626_day1_2_board_top #(
   assign adc_dco_dbg       = hw_dco_dbg_s;
   assign cnv_dbg           = cnv_s;
   assign phase_dbg         = phase_s;
+  
+  // if hardware mode, then serial input is hw_data, otherwise it's the MSB of fake input.
   assign serial_data_dbg   = (hw_mode_s) ? hw_data_dbg_s : tx_shift_r[SAMPLE_WIDTH-1];
-  assign expected_data_dbg = expected_data_r;
+  assign expected_data_dbg = (finish_valid_r != 0) ? finish_word_r : {SAMPLE_WIDTH{1'b0}};
 
   assign sample_valid      = sample_valid_r;
   assign sample_data       = sample_data_r;
@@ -91,8 +97,9 @@ module ad7626_day1_2_board_top #(
     .CNV_PERIOD_CYCLES(CNV_PERIOD_CYCLES),
     .CNV_HIGH_CYCLES(CNV_HIGH_CYCLES),
     .MSB_WAIT_CYCLES(MSB_WAIT_CYCLES),
+    .READ_START_CYCLES(READ_START_CYCLES),
     .READ_PULSE_CYCLES(READ_PULSE_CYCLES),
-    .POST_READ_GUARD_MIN_CYCLES(POST_READ_GUARD_MIN_CYCLES),
+    .TCLKL_CYCLES(TCLKL_CYCLES),
     .COUNTER_WIDTH(16)
   ) u_timing_gen (
     .clk(sys_clk_250),
@@ -175,6 +182,11 @@ module ad7626_day1_2_board_top #(
       $display("[DAY1_2_TOP][WARN] AD7626 echoed-clock mode is expected to deliver 16 bits, but SAMPLE_WIDTH=%0d.", SAMPLE_WIDTH);
     end
 
+    if (READ_START_CYCLES < CNV_HIGH_CYCLES) begin
+      $display("[DAY1_2_TOP][WARN] READ_START_CYCLES=%0d begins before CNV returns low at cycle %0d.",
+               READ_START_CYCLES, CNV_HIGH_CYCLES);
+    end
+
     if (READ_PULSE_CYCLES != SAMPLE_WIDTH) begin
       $display("[DAY1_2_TOP][WARN] READ_PULSE_CYCLES=%0d does not match SAMPLE_WIDTH=%0d.", READ_PULSE_CYCLES, SAMPLE_WIDTH);
     end
@@ -183,8 +195,12 @@ module ad7626_day1_2_board_top #(
       $display("[DAY1_2_TOP][WARN] CNV_HIGH_CYCLES=%0d is outside the 250 MHz / 10 ns to 40 ns CNV-high window.", CNV_HIGH_CYCLES);
     end
 
-    if (MSB_WAIT_CYCLES < 25) begin
-      $display("[DAY1_2_TOP][WARN] MSB_WAIT_CYCLES=%0d is shorter than the 100 ns tMSB assumption at 250 MHz.", MSB_WAIT_CYCLES);
+    if (READ_START_CYCLES < MSB_WAIT_CYCLES) begin
+      $display("[DAY1_2_TOP][WARN] The chosen split-burst read slot starts before the current sample is guaranteed ready.");
+    end
+
+    if ((CNV_PERIOD_CYCLES - READ_START_CYCLES) > TCLKL_CYCLES) begin
+      $display("[DAY1_2_TOP][WARN] Current-cycle burst head exceeds the configured tCLKL budget.");
     end
   end
 
@@ -192,70 +208,61 @@ module ad7626_day1_2_board_top #(
     if (!rstn) begin
       tx_word_r           <= {{(SAMPLE_WIDTH-1){1'b0}}, 1'b1};
       tx_shift_r          <= {SAMPLE_WIDTH{1'b0}};
-      expected_data_r     <= {SAMPLE_WIDTH{1'b0}};
-      fake_sample_valid_s <= 1'b0;
-      fake_sample_data_s  <= {SAMPLE_WIDTH{1'b0}};
+      start_word_r        <= {SAMPLE_WIDTH{1'b0}};
+      finish_word_r       <= {SAMPLE_WIDTH{1'b0}};
+      start_valid_r       <= 1'b0;
+      finish_valid_r      <= 1'b0;
+
       sample_valid_r      <= 1'b0;
       sample_data_r       <= {SAMPLE_WIDTH{1'b0}};
       sample_count_r      <= {COUNTER_WIDTH{1'b0}};
+
       align_error_r       <= 1'b0;
       mismatch_error_r    <= 1'b0;
-      sample_pending_r    <= 1'b0;
       ignore_first_frame_r <= ((DATA_SRC_SEL != 0) && (DROP_FIRST_SAMPLE != 0));
     end else begin
-      fake_sample_valid_s <= 1'b0;
-      sample_valid_r      <= 1'b0;
+      sample_valid_r <= 1'b0;
 
       if (frame_start_s) begin
+        finish_word_r  <= start_word_r;
+        finish_valid_r <= start_valid_r;
+
         if (ignore_first_frame_r) begin
           ignore_first_frame_r <= 1'b0;
-          sample_pending_r     <= 1'b0;
+          start_word_r         <= tx_word_r;
+          start_valid_r        <= 1'b0;
         end else begin
-          if (sample_pending_r) begin
-            align_error_r <= 1'b1;
-          end
-          sample_pending_r <= 1'b1;
+          start_word_r   <= tx_word_r;
+          start_valid_r  <= 1'b1;
+          tx_word_r      <= tx_word_r + 1'b1;
         end
-
-        expected_data_r <= tx_word_r;
-        tx_shift_r      <= tx_word_r;
-        tx_word_r       <= tx_word_r + 1'b1;
-      end else if (clk_gate_s) begin
-        tx_shift_r <= {tx_shift_r[SAMPLE_WIDTH-2:0], 1'b0};
       end
 
-      if (read_done_s) begin
-        fake_sample_valid_s <= 1'b1;
-        fake_sample_data_s  <= expected_data_r;
+      if (!hw_mode_s && read_start_s) begin
+        if (start_valid_r) begin
+          tx_shift_r <= start_word_r;
+        end else begin
+          tx_shift_r <= {SAMPLE_WIDTH{1'b0}};
+        end
+      end else if (!hw_mode_s && clk_gate_s) begin
+        tx_shift_r <= {tx_shift_r[SAMPLE_WIDTH-2:0], 1'b0};
       end
 
       if (hw_mode_s) begin
         if (hw_sample_valid_s) begin
-          if (!sample_pending_r) begin
-            align_error_r <= 1'b1;
-          end else begin
-            sample_pending_r <= 1'b0;
-          end
-
           sample_valid_r <= 1'b1;
           sample_data_r  <= hw_sample_data_s;
           sample_count_r <= sample_count_r + 1'b1;
+
+          if (!finish_valid_r) begin
+            align_error_r <= 1'b1;
+          end
         end
       end else begin
-        if (fake_sample_valid_s) begin
-          if (!sample_pending_r) begin
-            align_error_r <= 1'b1;
-          end else begin
-            sample_pending_r <= 1'b0;
-          end
-
+        if (read_done_s && finish_valid_r) begin
           sample_valid_r <= 1'b1;
-          sample_data_r  <= fake_sample_data_s;
+          sample_data_r  <= finish_word_r;
           sample_count_r <= sample_count_r + 1'b1;
-
-          if (fake_sample_data_s != expected_data_r) begin
-            mismatch_error_r <= 1'b1;
-          end
         end
       end
     end

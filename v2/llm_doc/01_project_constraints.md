@@ -36,10 +36,11 @@
   - Day1 上午最小数字闭环。
   - Day1-2 板级 echoed-clock 最小实现。
 - Day1-2 当前默认口径：
-  - `tCYC = 240 ns`
+  - `tCYC = 100 ns`
   - `tCNVH = 20 ns`
   - `tMSB = 100 ns`
   - `tCLK = 4 ns`
+  - `READ_START = 20 ns in cycle(N+1)`
 - 当前未完成：
   - `sys_clk_250` 的板级来源封装。
   - 实际板卡 `LOC` 填写。
@@ -52,3 +53,6 @@
 - 避免依赖新式 SystemVerilog 语法。
 - `v2/ref` 只用来学习层次和接口职责，不直接迁移为新开发主路径。
 - AD7626 echoed-clock 模式必须按 `DCO` 做 source-synchronous 接收，不能把 `D` 当普通系统时钟同步输入处理。
+- Day1-2 的读数模型已经改成：
+  - `CNV(N)` 启动 conversion `N`
+  - `cycle(N+1)` 的固定 burst 读窗读出 sample `N`

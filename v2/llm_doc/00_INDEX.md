@@ -25,5 +25,5 @@
 4. Day1 上午最小闭环代码已在 `v2/dev/rtl`、`v2/dev/tb`。
 5. Day1-2 的板级 echoed-clock 实现已经落在 `v2/dev/rtl/Day1-2/` 与 `v2/dev/constraints`。
 6. 模块讲解文档在 `v2/dev/human_doc`，已改成“代码片段 + 解释”风格。
-7. 当前默认 bring-up 口径不再是 `tCYC = 200 ns`，而是更保守的 `240 ns`。
+7. 当前默认 bring-up 口径已经改成“`tCYC = 100 ns` + 下一拍固定读窗读上一拍结果”。
 8. AD7626 echoed-clock 关键时序和 LVDS 规则在 `v2/llm_doc/AD7626_echoed_clock_interface_guide.md`。
