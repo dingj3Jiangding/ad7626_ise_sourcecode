@@ -160,12 +160,10 @@ module tb_ad7626_day1_2_board_top;
   wire [15:0]                 phase_dbg;
   wire [SAMPLE_WIDTH-1:0]     expected_data_dbg;
 
-  reg  [SAMPLE_WIDTH-1:0]     pending_word_r;
-  reg  [SAMPLE_WIDTH-1:0]     active_shift_word_r;
+  reg  [SAMPLE_WIDTH-1:0]     adc_shift_word_r;
+  reg  [SAMPLE_WIDTH-1:0]     next_cycle_word_r;
   reg  [SAMPLE_WIDTH-1:0]     next_valid_word_r;
   reg                         adc_first_conversion_invalid_r;
-  reg                         pending_valid_r;
-  reg                         active_valid_r;
   integer                     adc_negedge_count_r;
 
   integer                     frame_index_r;
@@ -245,63 +243,52 @@ module tb_ad7626_day1_2_board_top;
 
   // Simplified AD7626 behavioral model for echoed-clock mode:
   // 1. Cycle N launches conversion N on CNV rising.
-  // 2. The conversion result becomes pending at CNV, but does not start shifting yet.
-  // 3. read_start_dbg launches the pending word onto D for the burst head.
-  // 4. negedge clk_p advances the active serial word through the burst tail.
-  // 5. The first conversion result after reset is invalid.
-  // 6. DCO is modeled as an echoed copy of CLK.
-  // 7. D is valid before each rising DCO edge and updates on falling DCO edge.
+  // 2. Phase 15..24 of cycle N shifts the first 10 bits of sample N.
+  // 3. Phase 0..5 of cycle N+1 shifts the last 6 bits of sample N.
+  // 4. The first conversion result after reset is invalid.
+  // 5. DCO is modeled as an echoed copy of CLK.
+  // 6. D is valid before each rising DCO edge and updates on falling DCO edge.
   always @(posedge cnv_p or negedge rstn) begin
     if (!rstn) begin
-      pending_word_r      <= {SAMPLE_WIDTH{1'b0}};
+      adc_shift_word_r    <= {SAMPLE_WIDTH{1'b0}};
+      next_cycle_word_r   <= {{(SAMPLE_WIDTH-1){1'b0}}, 1'b1};
       next_valid_word_r   <= {{(SAMPLE_WIDTH-1){1'b0}}, 1'b1};
       adc_first_conversion_invalid_r <= 1'b1;
-      pending_valid_r     <= 1'b0;
-    end else begin
-      if (adc_first_conversion_invalid_r) begin
-        pending_word_r      <= 16'hDEAD;
-        adc_first_conversion_invalid_r <= 1'b0;
-      end else begin
-        pending_word_r      <= next_valid_word_r;
-        next_valid_word_r   <= next_valid_word_r + 1'b1;
-      end
-      pending_valid_r <= 1'b1;
-    end
-  end
-
-  always @(posedge read_start_dbg or negedge clk_p or negedge rstn) begin
-    if (!rstn) begin
-      active_shift_word_r <= {SAMPLE_WIDTH{1'b0}};
-      active_valid_r      <= 1'b0;
       adc_negedge_count_r <= SAMPLE_WIDTH;
       d_p_r               <= 1'b0;
       d_n_r               <= 1'b1;
-    end else if (read_start_dbg) begin
-      if (pending_valid_r) begin
-        active_shift_word_r <= pending_word_r;
-        active_valid_r      <= 1'b1;
-        adc_negedge_count_r <= 0;
-        d_p_r               <= pending_word_r[SAMPLE_WIDTH-1];
-        d_n_r               <= ~pending_word_r[SAMPLE_WIDTH-1];
+    end else begin
+      if (adc_first_conversion_invalid_r) begin
+        adc_shift_word_r    <= 16'hDEAD;
+        d_p_r               <= 1'b1;
+        d_n_r               <= 1'b0;
+        adc_first_conversion_invalid_r <= 1'b0;
       end else begin
-        active_shift_word_r <= {SAMPLE_WIDTH{1'b0}};
-        active_valid_r      <= 1'b0;
-        adc_negedge_count_r <= SAMPLE_WIDTH;
-        d_p_r               <= 1'b0;
-        d_n_r               <= 1'b1;
+        adc_shift_word_r    <= next_cycle_word_r;
+        d_p_r               <= next_cycle_word_r[SAMPLE_WIDTH-1];
+        d_n_r               <= ~next_cycle_word_r[SAMPLE_WIDTH-1];
+        next_cycle_word_r   <= next_valid_word_r + 1'b1;
+        next_valid_word_r   <= next_valid_word_r + 1'b1;
       end
-    end else if (active_valid_r) begin
+      adc_negedge_count_r <= 0;
+    end
+  end
+
+  always @(negedge clk_p or negedge rstn) begin
+    if (!rstn) begin
+      adc_negedge_count_r <= SAMPLE_WIDTH;
+      d_p_r               <= 1'b0;
+      d_n_r               <= 1'b1;
+    end else if (adc_negedge_count_r < SAMPLE_WIDTH) begin
       if (adc_negedge_count_r == (SAMPLE_WIDTH - 1)) begin
-        active_shift_word_r <= {SAMPLE_WIDTH{1'b0}};
-        active_valid_r      <= 1'b0;
         adc_negedge_count_r <= adc_negedge_count_r + 1;
         d_p_r               <= 1'b0;
         d_n_r               <= 1'b1;
       end else begin
-        active_shift_word_r <= {active_shift_word_r[SAMPLE_WIDTH-2:0], 1'b0};
         adc_negedge_count_r <= adc_negedge_count_r + 1;
-        d_p_r               <= active_shift_word_r[SAMPLE_WIDTH-2];
-        d_n_r               <= ~active_shift_word_r[SAMPLE_WIDTH-2];
+        d_p_r               <= adc_shift_word_r[SAMPLE_WIDTH-2];
+        d_n_r               <= ~adc_shift_word_r[SAMPLE_WIDTH-2];
+        adc_shift_word_r    <= {adc_shift_word_r[SAMPLE_WIDTH-2:0], 1'b0};
       end
     end
   end

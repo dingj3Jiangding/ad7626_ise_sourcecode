@@ -82,7 +82,7 @@ module ad7626_s6_serial_capture #(
       bit_count_dco      <= {BIT_COUNT_WIDTH{1'b0}};
       sample_toggle_dco  <= 1'b0;
     end else begin
-      shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
+      shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};    // setup timing failed
 
       if (bit_count_dco == (SAMPLE_WIDTH - 1)) begin
         sample_word_dco   <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};    // due to the Characteristics of the <=, this is not shifting 2 times
