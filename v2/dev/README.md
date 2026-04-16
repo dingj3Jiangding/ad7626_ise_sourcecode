@@ -25,7 +25,11 @@
 - `rtl/Day1-2/ad7626_s6_serial_capture.v`
   在 Spartan-6 上用 `DCO` 接收 `D`，并把 16bit 样本跨回系统时钟域。
 - `rtl/Day1-2/ad7626_day1_2_board_top.v`
-  Day1-2 板级顶层，直接连接 AD7626 差分接口并保留 fake/hw 双模式。
+  Day1-2 的 250 MHz 内核顶层，直接连接 AD7626 差分接口并保留 fake/hw 双模式。
+- `rtl/Day1-2/ad7626_day1_2_clkgen_100m_to_250m.v`
+  把板上 `100 MHz` 时钟转换成 Day1-2 内核使用的 `250 MHz`。
+- `rtl/Day1-2/ad7626_day1_2_board_top_100m.v`
+  当前更适合上板的外层顶层，输入 `sys_clk_100`，内部再实例化 250 MHz 内核。
 - `constraints/ad7626_day1_2_board_top_template.ucf`
   板级约束模板，等待补实际引脚 `LOC`。
 - `tb/tb_ad7626_min_loopback.v`
@@ -55,7 +59,7 @@ cd ad7626_ise_sourcecode/v2/dev/tb
 
 ## 下一步（Day1 下午之后）
 
-1. 根据你的板子补 `sys_clk_250` 的产生方式。
+1. 当前板时钟已经按 `100 MHz` 处理，工程顶层建议改用 `ad7626_day1_2_board_top_100m`。
 2. 按原理图填写 `constraints/ad7626_day1_2_board_top_template.ucf` 的 `LOC`。
 3. 上板验证 `CNV`、`CLK`、`DCO`、`D` 与 `sample_valid`。
 4. 在硬件稳定后，再补更严格的时序约束和后续寄存器/采集链路。

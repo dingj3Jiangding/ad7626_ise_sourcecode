@@ -23,12 +23,13 @@ Current progress:
 
 Current default bring-up assumptions in the new flow:
 
-1. `tCYC = 240 ns`
+1. `tCYC = 100 ns`
 2. `tCNVH = 20 ns`
 3. `tMSB = 100 ns`
-4. `tCLK = 4 ns`
-
-These values are intentionally conservative for first hardware validation.
+4. `read_start = 20 ns into the next cycle`
+5. `16 x CLK @ 4 ns = 64 ns`
+6. `tCLKL = 72 ns`
+7. readout uses a fixed next-cycle burst slot, not a same-cycle `tMSB` wait-then-read model
 
 ## Key Files in the Current Flow
 

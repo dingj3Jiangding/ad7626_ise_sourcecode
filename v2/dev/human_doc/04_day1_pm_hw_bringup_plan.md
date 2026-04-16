@@ -37,7 +37,9 @@
 3. `ad7626_s6_serial_capture`
    负责用 `DCO` 做接收时钟，按 16bit 组帧。
 4. `ad7626_day1_2_board_top`
-   负责把发送链、接收链、fake/hw 模式和调试导出拼起来。
+   作为 `250 MHz` 内核，负责把发送链、接收链、fake/hw 模式和调试导出拼起来。
+5. `ad7626_day1_2_board_top_100m`
+   作为当前板级外层顶层，接收 `100 MHz` 板时钟，在 FPGA 内部生出 `250 MHz` 再驱动内核。
 
 ## 4. 为什么这一步直接做 DCO 域采样
 
@@ -70,75 +72,107 @@ AD7626 echoed-clock 模式的关键规则是：
 
 ## 5.2 这组数值里真正有问题的地方
 
-最需要警惕的是 `tCYC = 200 ns`。
+之前最需要警惕的，其实不是某一个单独参数，而是“时序关系理解错了”。
 
-如果按：
+旧理解是：
 
-1. `tMSB = 100 ns`
-2. 16 个 `CLK`，每个 `4 ns`
+1. 在同一个 `tCYC` 里先等 `tMSB`
+2. 再把 16 个 `CLK` 全部发完
 
-那么读数 burst 总长度就是：
+按这个错误模型，当然会得到：
 
 ```text
 16 x 4 ns = 64 ns
 ```
 
-从 `CNV` 到 burst 结束的总长度就是：
+以及：
 
 ```text
 100 ns + 64 ns = 164 ns
 ```
 
-如果整个周期只有 `200 ns`，那余量只剩：
+然后会进一步推到“`200 ns` 只剩 `36 ns` 余量”。
 
-```text
-200 ns - 164 ns = 36 ns
-```
+但 AD7626 echoed-clock 满速工作时，更合理的理解应该是：
 
-这个 `36 ns`：
+1. `CNV(N)` 启动 conversion `N`
+2. `cycle(N+1)` 里的 burst 读 sample `N`
+3. 只要 burst 结束时间满足 `tCLKL` 边界即可
 
-1. 小于你当前先采用的 `tCLKL = 60 ns`
-2. 也小于文档里更保守的 `72 ns`
+也就是说，sample read 可以和下一拍 conversion/acquisition 重叠。
 
-所以：
+## 5.3 现行默认参数检查
 
-1. `200 ns` 不是一个好的默认 bring-up 周期。
-2. 至少在当前理解下，它不够保守。
-
-## 5.3 当前代码采用的默认值
-
-为了提高 first bring-up 成功率，当前代码默认改成：
+Day1-2 现在的默认值改成：
 
 | 项目 | 周期数 | 时间 |
 |---|---:|---:|
-| `CNV_PERIOD_CYCLES` | 60 | 240 ns |
+| `CNV_PERIOD_CYCLES` | 25 | 100 ns |
 | `CNV_HIGH_CYCLES` | 5 | 20 ns |
-| `MSB_WAIT_CYCLES` | 25 | 100 ns |
+| `MSB_WAIT_CYCLES` | 15 | 60 ns |
+| `READ_START_CYCLES` | 15 | 60 ns |
 | `READ_PULSE_CYCLES` | 16 | 64 ns |
-| post-read guard | 19 | 76 ns |
+| `TCLKL_CYCLES` | 10 | 40 ns |
 
-这样做的理由：
+对应检查有两条：
 
-1. `20 ns` 落在 `tCNVH` 合法窗口内。
-2. `100 ns` 对应当前 `tMSB` 假设。
-3. burst 后还保留 `76 ns` 保护窗口，更接近保守 bring-up 需要。
+第一条，当前样本在本拍读窗开始前是否已经 ready：
+
+```text
+READ_START_CYCLES
+= 15 cycles
+= 60 ns
+```
+
+因为：
+
+```text
+60 ns >= tMSB = 60 ns
+```
+
+第二条，burst 是否在 `tCLKL` 边界前结束：
+
+```text
+READ_HEAD_CYCLES = CNV_PERIOD_CYCLES - READ_START_CYCLES
+                 = 25 - 15
+                 = 10 cycles
+                 = 40 ns
+```
+
+而截止边界是：
+
+```text
+TCLKL_CYCLES
+= 10 cycles
+= 40 ns
+```
+
+所以：
+
+```text
+40 ns <= 40 ns
+```
+
+也就是当前默认值满足我们现在采用的这套时序假设。
 
 ## 5.4 当前我对参数的结论
 
-建议你把这组值作为 Day1-2 默认：
+现在建议把下面这组值作为 Day1-2 默认：
 
-1. `tCYC = 240 ns`
+1. `tCYC = 100 ns`
 2. `tCNVH = 20 ns`
 3. `tMSB = 100 ns`
 4. `tCLK = 4 ns`
-5. `tCLKL` 继续按 `60 ns ~ 72 ns` 风险项对待
+5. `read_start = 20 ns`
+6. `tCLKL = 72 ns`
 
 也就是说：
 
 1. `tCNVH` 没问题。
 2. `tMSB` 没问题。
 3. `tCLK = 4 ns` 没问题。
-4. 主要问题是 `tCYC = 200 ns` 太紧。
+4. 关键不是把 `tCYC` 做大，而是把 burst 放在“下一拍的固定读窗”。
+5. 如果后面板测想加余量，可以再放宽 `READ_START_CYCLES` 或 `CNV_PERIOD_CYCLES`。
 
 ## 6. 当前 I/O 电平标准结论
 
@@ -159,13 +193,13 @@ AD7626 echoed-clock 模式的关键规则是：
 
 除了 RTL 本身，Day1-2 还依赖下面两项你来补板级信息：
 
-1. `sys_clk_250` 从哪来
+1. `sys_clk_100` 的实际引脚与电平标准
 2. 实际引脚 `LOC`
 
 第 1 点说明：
 
-当前 top 假定已经有稳定的 `250 MHz` 系统时钟。  
-如果你板子的晶振不是 `250 MHz`，需要在更外层先做一个 DCM/PLL wrapper 生成 `sys_clk_250`。
+现在已经按你板上的原生 `100 MHz` 时钟补了 wrapper。  
+当前推荐综合顶层是 `ad7626_day1_2_board_top_100m`，它会在 FPGA 内部生成 `250 MHz` 的读数内核时钟。
 
 第 2 点说明：
 
@@ -175,7 +209,7 @@ AD7626 echoed-clock 模式的关键规则是：
 
 你只需要按原理图补：
 
-1. `sys_clk_250`
+1. `sys_clk_100`
 2. `dco_p/n`
 3. `d_p/n`
 4. `clk_p/n`
@@ -186,6 +220,7 @@ AD7626 echoed-clock 模式的关键规则是：
 建议先按这个顺序排查：
 
 1. 看 `sys_clk_250` 是否正确。
+   对当前板子来说，这一步应改成先看 `sys_clk_100` 是否正确，再看内部 `250 MHz` 是否锁定。
 2. 看 `CNV` 周期是否正确。
 3. 看 `CLK` 是否只在 burst 窗口活动、空闲保持低。
 4. 看 ADC 是否回 `DCO`。

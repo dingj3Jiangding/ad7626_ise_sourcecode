@@ -2,6 +2,11 @@
 
 对应源码：`v2/dev/rtl/Day1-2/ad7626_day1_2_board_top.v`
 
+注意：
+
+1. 这份文档讲的是 `250 MHz` 内核顶层。
+2. 如果你的板上原生时钟是 `100 MHz`，当前推荐外层顶层已经变成 `ad7626_day1_2_board_top_100m.v`。
+
 ## 1. 这个 top 解决什么问题
 
 这是当前 Day1-2 的板级顶层。
@@ -10,7 +15,7 @@
 
 1. 产生 `CNV±` 和 `CLK±`
 2. 接收 `DCO±` 和 `D±`
-3. 输出系统侧调试与样本接口
+3. 维护 `start/finish` 两段样本流水，并输出系统侧调试与样本接口
 
 ## 2. 顶层端口的核心分组
 
@@ -93,6 +98,13 @@ assign hw_mode_s = (DATA_SRC_SEL != 0);
 1. 可以先验证系统侧计数与调试接口没有坏。
 2. 板级出问题时，有一个快速回退通道。
 
+这里当前实现里最重要的点是 `start/finish` 两段流水：
+
+1. `start_word`：当前 `frame_start` 启动、并将在本周期 `read_start` 开始发送 head 的 sample。
+2. `finish_word`：上一周期已经开始发送、并将在本周期 `read_done` 完成 tail 的 sample。
+
+它比旧的 pending queue 更直接，因为 split-burst 的时间关系现在就是固定的“本周期 start、下一周期 finish”。
+
 ## 5. 当前 top 里最重要的参数告警
 
 模块里会主动提示几类容易配错的情况：
@@ -100,7 +112,7 @@ assign hw_mode_s = (DATA_SRC_SEL != 0);
 1. `SAMPLE_WIDTH != 16`
 2. `READ_PULSE_CYCLES != SAMPLE_WIDTH`
 3. `CNV_HIGH_CYCLES` 不在 `10 ns ~ 40 ns` 对应的 250 MHz 周期范围内
-4. `MSB_WAIT_CYCLES < 25`
+4. `READ_START_CYCLES < MSB_WAIT_CYCLES`
 
 这些告警不是最终约束，但对 first bring-up 很有帮助。
 
@@ -129,3 +141,19 @@ assign hw_mode_s = (DATA_SRC_SEL != 0);
 1. burst 应该什么时候开始
 2. burst 实际开了多长
 3. ADC 有没有按预期回时钟
+
+再补一个你现在看代码时最应该记住的时间线：
+
+```text
+frame N:
+  phase 0      -> CNV(N)，同时把上一份 start_word 推到 finish_word
+  phase 0..5   -> finish finish_word 的 tail
+  phase 15..24 -> start start_word 的 head
+
+frame N+1:
+  phase 0..5   -> finish 本帧 start_word 的 tail
+  phase 6      -> read_done
+  phase 15..24 -> start 下一份样本的 head
+```
+
+所以 `sample_valid` 对应的是 `finish_word`，不是“本拍刚发 CNV 的样本”。

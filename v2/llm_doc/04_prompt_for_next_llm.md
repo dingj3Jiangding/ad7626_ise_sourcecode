@@ -26,11 +26,15 @@
   - `v2/dev/tb/Day1-2/tb_ad7626_day1_2_board_top.v`
 - 模块说明文档在 `v2/dev/human_doc`。
 - 当前默认 bring-up 口径：
-  - `tCYC = 240 ns`
+  - `tCYC = 100 ns`
   - `tCNVH = 20 ns`
   - `tMSB = 100 ns`
   - `tCLK = 4 ns`
-- `tCYC = 200 ns` 当前被认为太紧，不应再作为默认值。
+  - `READ_START = cycle(N+1) + 20 ns`
+- 不要再按“同一个 `tCYC` 内等待 `tMSB` 再把 16bit 读完”的旧模型思考。
+- 当前实现采用：
+  - `CNV(N)` 启动 conversion `N`
+  - `cycle(N+1)` 固定 burst 读窗读出 sample `N`
 
 实现边界：
 

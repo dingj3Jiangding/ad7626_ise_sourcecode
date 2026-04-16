@@ -79,25 +79,44 @@ sys_clk_250 domain
 
 | 项目 | 周期数 | 时间 |
 |---|---:|---:|
-| `CNV_PERIOD_CYCLES` | 60 | 240 ns |
+| `CNV_PERIOD_CYCLES` | 25 | 100 ns |
 | `CNV_HIGH_CYCLES` | 5 | 20 ns |
-| `MSB_WAIT_CYCLES` | 25 | 100 ns |
+| `MSB_WAIT_CYCLES` | 15 | 60 ns |
+| `READ_START_CYCLES` | 15 | 60 ns |
 | `READ_PULSE_CYCLES` | 16 | 64 ns |
-| burst 后保护窗口 | 19 | 76 ns |
+| `TCLKL_CYCLES` | 10 | 40 ns |
 
 这样选的原因：
 
 1. `CNV_HIGH = 20 ns` 落在 `tCNVH = 10 ns ~ 40 ns` 允许范围内。
-2. `MSB_WAIT = 100 ns` 对应当前对 `tMSB` 的假定。
-3. 16 个 `CLK` 脉冲在 `16 x 4 ns = 64 ns` 内完成。
-4. 周期如果只取你之前的 `200 ns`，那么 `100 ns + 64 ns = 164 ns`，剩余只有 `36 ns`。
-5. 这个 `36 ns` 比你当前采用的 `tCLKL = 60 ns`，以及文档里更保守的 `72 ns` 都要小，所以不够稳妥。
+2. `sample(N)` 在 `cycle(N)` 的 `READ_START` 就开始读 head，所以等待时间是：
+
+```text
+READ_START_CYCLES
+= 15 cycles
+= 60 ns
+```
+
+3. `60 ns` 已经等于当前采用的 `tMSB = 60 ns`。
+4. 当前周期 head 长度是：
+
+```text
+READ_HEAD_CYCLES = 25 - 15 = 10 cycles = 40 ns
+```
+
+5. `tCLKL` 截止点按当前默认值是：
+
+```text
+TCLKL_CYCLES = 10 cycles = 40 ns
+```
+
+6. 也就是当前周期 head 正好贴着 `tCLKL` 边界结束，剩下 `6` 个 clock 放到下一周期头部。
 
 因此：
 
-1. `tCYC = 200 ns` 不是不能讨论。
-2. 但在当前对 `tCLKL` 的理解下，它不适合作为默认 bring-up 值。
-3. Day1-2 代码默认改成 `240 ns`，是为了先得到一个更保守、更容易上板成功的版本。
+1. 之前把 burst 做成单段窗口的理解是错误的。
+2. 修正成“本拍发 head、下一拍补 tail”后，`tCYC = 100 ns` 是合理的默认值。
+3. 如果后面板测想留更大余量，可以再把 `READ_START_CYCLES` 或 `CNV_PERIOD_CYCLES` 调大。
 
 ## 5. 这个 checkpoint 的边界
 
@@ -135,7 +154,7 @@ sys_clk_250 domain
 
 你可以把它理解成：
 
-“把一整个 sample 周期切成 `CNV`、等待 `tMSB`、发送 16 个读时钟、再留保护窗口”。
+“在每个 sample 周期里，同时安排当前拍的 `CNV`，以及上一拍结果的固定读窗”。
 
 ## 6.2 `ad7626_s6_serial_capture`
 
@@ -181,6 +200,12 @@ sys_clk_250 domain
 2. 如果 `CNV` / `CLK` 对，但没有 `DCO`，先查 ADC 模式脚、供电、参考源和板级连接。
 3. 如果有 `DCO` / `D`，但 `sample_valid` 不稳定，再查接收相位和约束。
 
+补一条最关键的理解：
+
+1. `CNV(N)` 启动 conversion `N`。
+2. `cycle(N+1)` 里的 burst 读出的是 sample `N`。
+3. 这不是“多等了一拍”，而是 AD7626 满速 echoed-clock 模式本来就允许的重叠关系。
+
 ## 8. 当前参数还剩什么风险
 
 目前最需要继续确认的，不是 `tCNVH`，而是下面这两件事：
@@ -190,7 +215,7 @@ sys_clk_250 domain
 
 对当前代码的影响：
 
-1. 代码默认值已经偏保守，适合 first bring-up。
+1. 代码默认值已经和当前这套重叠读数模型对齐。
 2. 但 `OFFSET IN` 之类更严格的时序约束，还不能算最终版。
 3. 如果后面确认 `tCLKL` 的解释和我们现在理解不同，再回头收紧 `CNV_PERIOD_CYCLES` 即可。
 

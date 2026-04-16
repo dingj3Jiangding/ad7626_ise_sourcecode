@@ -9,7 +9,7 @@
 3. frame 间 D：0。
 4. 每 frame 数据位数：16bit。
 5. 转换触发：CNV 上升沿触发。
-6. 采样边沿：DCO 下降沿采样 D。
+6. 采样边沿：主机在 `DCO` 上升沿采样 `D`，`D` 在 `DCO` 下降沿更新。
 
 ## 2. 时序参数数值（当前已整理）
 
@@ -21,7 +21,7 @@
 
 | 参数 | 含义 | Min | Typ | Max | 单位 | 备注 |
 |---|---|---:|---:|---:|---|---|
-| `tCYC` | CNV 周期 | 100 | N/A | 10000 | ns | Day1-2 默认先用 240 ns |
+| `tCYC` | CNV 周期 | 100 | N/A | 10000 | ns | Day1-2 现默认改为 100 ns |
 | `tCNVH` | CNV 高电平宽度（上升沿触发后需回低） | 10 | N/A | 40 | ns | Day1-2 默认先用 20 ns |
 | `tMSB` | CNV 到首位数据出现延迟 | 100 | N/A | 100 | ns | 当前直接按 100 ns 取值 |
 | `tCLKL` | CNV 结束到 LSB 的时间 | 72 | N/A | 72 | ns | 当前仍作为风险边界继续核对 |
@@ -32,15 +32,36 @@
 
 按 `sys_clk_250 = 250 MHz`，当前 RTL 默认是：
 
-1. `CNV_PERIOD_CYCLES = 60`，即 `240 ns`
+1. `CNV_PERIOD_CYCLES = 25`，即 `100 ns`
 2. `CNV_HIGH_CYCLES = 5`，即 `20 ns`
 3. `MSB_WAIT_CYCLES = 25`，即 `100 ns`
-4. `READ_PULSE_CYCLES = 16`，即 `64 ns`
+4. `READ_START_CYCLES = 5`，即 `20 ns`
+5. `READ_PULSE_CYCLES = 16`，即 `64 ns`
+6. `TCLKL_CYCLES = 18`，即 `72 ns`
 
 原因：
 
-1. `tCYC = 200 ns` 时，`100 ns + 64 ns` 后只剩 `36 ns`，余量太小。
-2. `240 ns` 能留下 `76 ns` 的 post-read guard，更适合 first bring-up。
+1. `sample(N)` 在 `cycle(N+1)` 的固定读窗里读出，不需要把 `tMSB` 和 16 个 `CLK` 塞进同一个 `tCYC`。
+2. 从 `CNV(N)` 到 `cycle(N+1)` 读窗起点，一共经过：
+
+```text
+25 + 5 = 30 cycles = 120 ns
+```
+
+3. `120 ns` 已经大于 `tMSB = 100 ns`。
+4. burst 结束点是：
+
+```text
+5 + 16 = 21 cycles = 84 ns
+```
+
+5. `tCLKL` 截止点是：
+
+```text
+5 + 18 = 23 cycles = 92 ns
+```
+
+6. 也就是当前默认值在截止边界前留出了 `8 ns` 余量。
 
 ## 3. 板级连接参数（请填写）
 

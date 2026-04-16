@@ -13,6 +13,8 @@
 7. `07_ad7626_day1_2_timing_gen.md`
 8. `08_ad7626_s6_serial_capture.md`
 9. `09_ad7626_day1_2_board_top.md`
+10. `10_day1_2_overlap_read_fix.md`
+11. `11_day1_2_board_top_100m.md`
 
 ## 本次文档风格
 
