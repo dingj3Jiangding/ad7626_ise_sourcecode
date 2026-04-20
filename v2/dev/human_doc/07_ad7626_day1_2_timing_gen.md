@@ -19,7 +19,7 @@ parameter integer CNV_PERIOD_CYCLES = 25,
 parameter integer CNV_HIGH_CYCLES   = 5,
 parameter integer MSB_WAIT_CYCLES   = 15,
 parameter integer READ_START_CYCLES = 15,
-parameter integer READ_PULSE_CYCLES = 16,
+parameter integer READ_PULSE_CYCLES = 17,
 parameter integer TCLKL_CYCLES      = 10
 ```
 
@@ -29,20 +29,20 @@ parameter integer TCLKL_CYCLES      = 10
 2. `20 ns`
 3. `60 ns`
 4. `60 ns`
-5. `64 ns`
+5. `68 ns`
 6. `40 ns`
 
 在当前 split-burst 模型里，还会额外推导出两个量：
 
 ```text
 READ_HEAD_CYCLES = CNV_PERIOD_CYCLES - READ_START_CYCLES = 10
-READ_TAIL_CYCLES = READ_PULSE_CYCLES - READ_HEAD_CYCLES  = 6
+READ_TAIL_CYCLES = READ_PULSE_CYCLES - READ_HEAD_CYCLES  = 7
 ```
 
 也就是：
 
 1. 每个周期末尾先发 `10` 个时钟。
-2. 下一周期开头再补 `6` 个时钟。
+2. 下一周期开头再补 `7` 个时钟。
 
 这里最容易误解的是 `MSB_WAIT_CYCLES` 和 `READ_START_CYCLES`：
 
@@ -98,7 +98,7 @@ clk_gate    <= ((phase_cnt >= READ_START_CYCLES) ||
 2. 前 `CNV_HIGH_CYCLES` 个时钟拉高 `CNV`。
 3. 到 `READ_START_CYCLES` 后，打开当前周期末尾那一段 `clk_gate`。
 4. 到下一周期 `READ_TAIL_CYCLES` 之前，保持下一周期开头那一段 `clk_gate`。
-5. 两段拼起来，一共还是 `READ_PULSE_CYCLES = 16` 个系统时钟周期。
+5. 两段拼起来，一共是 `READ_PULSE_CYCLES = 17` 个系统时钟周期。
 
 可以用下面这个时间线去理解：
 

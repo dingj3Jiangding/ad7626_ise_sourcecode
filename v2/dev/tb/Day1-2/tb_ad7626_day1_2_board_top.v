@@ -123,12 +123,13 @@ endmodule
 module tb_ad7626_day1_2_board_top;
 
   localparam integer SAMPLE_WIDTH              = 16;
+  localparam integer FULL_CYCLE_CAPTURE        = 1;
   localparam integer TARGET_VALID_SAMPLES      = 16;
   localparam integer CNV_PERIOD_CYCLES         = 25;
   localparam integer CNV_HIGH_CYCLES           = 5;
   localparam integer MSB_WAIT_CYCLES           = 15;
   localparam integer READ_START_CYCLES         = 15;
-  localparam integer READ_PULSE_CYCLES         = 16;
+  localparam integer READ_PULSE_CYCLES         = SAMPLE_WIDTH + FULL_CYCLE_CAPTURE;
   localparam integer TCLKL_CYCLES              = 10;
   localparam integer READ_HEAD_CYCLES          = CNV_PERIOD_CYCLES - READ_START_CYCLES;
   localparam integer READ_TAIL_CYCLES          = READ_PULSE_CYCLES - READ_HEAD_CYCLES;
@@ -194,7 +195,8 @@ module tb_ad7626_day1_2_board_top;
     .READ_START_CYCLES(READ_START_CYCLES),
     .READ_PULSE_CYCLES(READ_PULSE_CYCLES),
     .TCLKL_CYCLES(TCLKL_CYCLES),
-    .DROP_FIRST_SAMPLE(1)
+    .DROP_FIRST_SAMPLE(1),
+    .FULL_CYCLE_CAPTURE(FULL_CYCLE_CAPTURE)
   ) dut (
     .sys_clk_250(sys_clk_250),
     .rstn(rstn),
@@ -269,6 +271,8 @@ module tb_ad7626_day1_2_board_top;
   // 5. The first conversion result after reset is invalid.
   // 6. DCO is modeled as an echoed copy of CLK.
   // 7. D is valid before each rising DCO edge and updates on falling DCO edge.
+  // 8. In full-cycle mode, READ_PULSE_CYCLES becomes 17 so the final pulse acts
+  //    as the flush edge that moves bit[0] from IDDR2.Q0 into fabric.
   always @(posedge cnv_p or negedge rstn) begin
     if (!rstn) begin
       pending_word_r      <= {SAMPLE_WIDTH{1'b0}};
@@ -412,8 +416,10 @@ module tb_ad7626_day1_2_board_top;
         expected_sample_r = expected_sample_r + 1'b1;
 
         if (valid_sample_seen_r == TARGET_VALID_SAMPLES) begin
-          $display("[TB][PASS] Reached %0d valid hardware samples with correct timing and data.",
-                   TARGET_VALID_SAMPLES);
+          $display("[TB][PASS] Reached %0d valid hardware samples with correct timing and data in %0s mode (READ_PULSE_CYCLES=%0d).",
+                   TARGET_VALID_SAMPLES,
+                   (FULL_CYCLE_CAPTURE != 0) ? "full-cycle" : "half-cycle",
+                   READ_PULSE_CYCLES);
           $finish;
         end
       end

@@ -9,9 +9,10 @@ module ad7626_day1_2_board_top #(
   parameter integer CNV_HIGH_CYCLES     = 5,
   parameter integer MSB_WAIT_CYCLES     = 15,
   parameter integer READ_START_CYCLES   = 15,
-  parameter integer READ_PULSE_CYCLES   = 16,
+  parameter integer READ_PULSE_CYCLES   = 17,
   parameter integer TCLKL_CYCLES        = 10,
   parameter integer DROP_FIRST_SAMPLE   = 1,
+  parameter integer FULL_CYCLE_CAPTURE  = 1,
   parameter         DIFF_TERM           = "TRUE"
 ) (
   // This top assumes sys_clk_250 is already a clean 250 MHz fabric clock.
@@ -127,6 +128,7 @@ module ad7626_day1_2_board_top #(
   ad7626_s6_serial_capture #(
     .SAMPLE_WIDTH(SAMPLE_WIDTH),
     .DROP_FIRST_SAMPLE(DROP_FIRST_SAMPLE),
+    .FULL_CYCLE_CAPTURE(FULL_CYCLE_CAPTURE),
     .DIFF_TERM(DIFF_TERM)
   ) u_serial_capture (
     .sys_clk(sys_clk_250),
@@ -210,8 +212,14 @@ module ad7626_day1_2_board_top #(
                READ_START_CYCLES, CNV_HIGH_CYCLES);
     end
 
-    if (READ_PULSE_CYCLES != SAMPLE_WIDTH) begin
-      $display("[DAY1_2_TOP][WARN] READ_PULSE_CYCLES=%0d does not match SAMPLE_WIDTH=%0d.", READ_PULSE_CYCLES, SAMPLE_WIDTH);
+    if ((FULL_CYCLE_CAPTURE == 0) && (READ_PULSE_CYCLES != SAMPLE_WIDTH)) begin
+      $display("[DAY1_2_TOP][WARN] Half-cycle mode expects READ_PULSE_CYCLES=%0d, but got %0d.",
+               SAMPLE_WIDTH, READ_PULSE_CYCLES);
+    end
+
+    if ((FULL_CYCLE_CAPTURE != 0) && (READ_PULSE_CYCLES != (SAMPLE_WIDTH + 1))) begin
+      $display("[DAY1_2_TOP][WARN] Full-cycle experiment expects READ_PULSE_CYCLES=%0d, but got %0d.",
+               SAMPLE_WIDTH + 1, READ_PULSE_CYCLES);
     end
 
     if ((CNV_HIGH_CYCLES < 3) || (CNV_HIGH_CYCLES > 10)) begin

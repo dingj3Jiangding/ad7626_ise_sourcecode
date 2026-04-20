@@ -5,7 +5,7 @@ module ad7626_day1_2_timing_gen #(
   parameter integer CNV_HIGH_CYCLES   = 5,    // 20ns
   parameter integer MSB_WAIT_CYCLES   = 15,   // 60ns
   parameter integer READ_START_CYCLES = 15,   // 60ns
-  parameter integer READ_PULSE_CYCLES = 16,   // 64ns
+  parameter integer READ_PULSE_CYCLES = 17,   // 68ns
   parameter integer TCLKL_CYCLES      = 10,   // 40ns
   parameter integer COUNTER_WIDTH     = 16
 ) (

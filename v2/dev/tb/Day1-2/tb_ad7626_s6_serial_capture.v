@@ -73,6 +73,7 @@ module tb_ad7626_s6_serial_capture;
 
   localparam integer SAMPLE_WIDTH   = 16;
   localparam integer NUM_TEST_WORDS = 5;
+  localparam integer FULL_CYCLE_CAPTURE = 1;
 
   reg                         sys_clk;
   reg                         rstn;
@@ -131,6 +132,18 @@ module tb_ad7626_s6_serial_capture;
         dco_n_r = 1'b1;
       end
 
+      // The experimental full-cycle mode consumes IDDR2.Q0 on the next
+      // rising DCO edge, so one extra flush edge is needed after bit[0].
+      if (FULL_CYCLE_CAPTURE != 0) begin
+        drive_data_bit(1'b0);
+        #1;
+        dco_p_r = 1'b1;
+        dco_n_r = 1'b0;
+        #1;
+        dco_p_r = 1'b0;
+        dco_n_r = 1'b1;
+      end
+
       drive_data_bit(1'b0);
       #8;
     end
@@ -139,7 +152,8 @@ module tb_ad7626_s6_serial_capture;
   ad7626_s6_serial_capture #(
     .SAMPLE_WIDTH(SAMPLE_WIDTH),
     .BIT_COUNT_WIDTH(6),
-    .DROP_FIRST_SAMPLE(0)
+    .DROP_FIRST_SAMPLE(0),
+    .FULL_CYCLE_CAPTURE(FULL_CYCLE_CAPTURE)
   ) dut (
     .sys_clk(sys_clk),
     .rstn(rstn),
@@ -198,8 +212,9 @@ module tb_ad7626_s6_serial_capture;
       $finish;
     end
 
-    $display("[TB_CAPTURE][PASS] Captured %0d words correctly in DCO and sys_clk domains.",
-             NUM_TEST_WORDS);
+    $display("[TB_CAPTURE][PASS] Captured %0d words correctly in %0s mode.",
+             NUM_TEST_WORDS,
+             (FULL_CYCLE_CAPTURE != 0) ? "full-cycle" : "half-cycle");
     $finish;
   end
 
