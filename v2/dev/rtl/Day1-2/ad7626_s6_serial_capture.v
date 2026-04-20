@@ -12,6 +12,9 @@ module ad7626_s6_serial_capture #(
   input  wire                     dco_n,
   input  wire                     d_p,
   input  wire                     d_n,
+
+  input  wire                     read_start_align,
+
   output reg                      sample_valid,
   output reg  [SAMPLE_WIDTH-1:0]  sample_data,
   output wire                     dco_dbg,
@@ -39,9 +42,24 @@ module ad7626_s6_serial_capture #(
   reg   [SAMPLE_WIDTH-1:0] sample_word_sync;
   reg                      drop_first_pending;
   
+  // Sys-domain request to start a new word.
+  reg                      capture_req_sys;
+  // DCO-domain flag: current request already consumed.
+  reg                      capture_req_seen_dco;
+  // DCO-domain flag: currently capturing one word.
+  reg                      capture_active_dco;
+  // DCO-domain ack toggle for request consumption.
+  reg                      capture_ack_toggle_dco;
+  // Sys-domain synchronizer for the ack toggle.
+  reg   [2:0]              capture_ack_sync;
+
+  // Sys-domain pulse: DCO has accepted the request.
+  wire                     capture_ack_seen_sys;
+  
   assign data_rise_dbg = data_rise_s;
   assign shift_reg_dco_dbg = shift_reg_dco;
   assign bit_count_dco_dbg = bit_count_dco;
+  assign capture_ack_seen_sys = capture_ack_sync[2] ^ capture_ack_sync[1];
 
   IBUFGDS #(
     .DIFF_TERM(DIFF_TERM),
@@ -87,19 +105,37 @@ module ad7626_s6_serial_capture #(
   // dco clock field, falling edge 
   always @(negedge dco_clk_s or negedge rstn) begin
     if (!rstn) begin
-      shift_reg_dco      <= {SAMPLE_WIDTH{1'b0}};
-      sample_word_dco    <= {SAMPLE_WIDTH{1'b0}};
-      bit_count_dco      <= {BIT_COUNT_WIDTH{1'b0}};
-      sample_toggle_dco  <= 1'b0;
+      shift_reg_dco        <= {SAMPLE_WIDTH{1'b0}};
+      sample_word_dco      <= {SAMPLE_WIDTH{1'b0}};
+      bit_count_dco        <= {BIT_COUNT_WIDTH{1'b0}};
+      sample_toggle_dco    <= 1'b0;
+      capture_req_seen_dco <= 1'b0;
+      capture_active_dco   <= 1'b0;
+      capture_ack_toggle_dco <= 1'b0;
     end else begin
-      shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
+      if (!capture_req_sys) begin
+        capture_req_seen_dco <= 1'b0;
+      end
 
-      if (bit_count_dco == (SAMPLE_WIDTH - 1)) begin
-        sample_word_dco   <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};    // due to the Characteristics of the <=, this is not shifting 2 times
-        sample_toggle_dco <= ~sample_toggle_dco;
-        bit_count_dco     <= {BIT_COUNT_WIDTH{1'b0}};
+      if (!capture_active_dco) begin
+        if (!capture_req_seen_dco && capture_req_sys) begin
+          shift_reg_dco        <= {{(SAMPLE_WIDTH-1){1'b0}}, data_rise_s};
+          bit_count_dco        <= {{(BIT_COUNT_WIDTH-1){1'b0}}, 1'b1};
+          capture_req_seen_dco <= 1'b1;
+          capture_active_dco   <= 1'b1;
+          capture_ack_toggle_dco <= ~capture_ack_toggle_dco;
+        end
       end else begin
-        bit_count_dco <= bit_count_dco + 1'b1;
+        shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
+
+        if (bit_count_dco == (SAMPLE_WIDTH - 1)) begin
+          sample_word_dco    <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
+          sample_toggle_dco  <= ~sample_toggle_dco;
+          bit_count_dco      <= {BIT_COUNT_WIDTH{1'b0}};
+          capture_active_dco <= 1'b0;
+        end else begin
+          bit_count_dco <= bit_count_dco + 1'b1;
+        end
       end
     end
   end
@@ -109,6 +145,8 @@ module ad7626_s6_serial_capture #(
   // Cross Clock Domain transfer
   always @(posedge sys_clk or negedge rstn) begin
     if (!rstn) begin
+      capture_req_sys     <= 1'b0;
+      capture_ack_sync    <= 3'b000;
       sample_valid       <= 1'b0;
       sample_data        <= {SAMPLE_WIDTH{1'b0}};
       sample_toggle_sync <= 4'b0000;
@@ -116,6 +154,13 @@ module ad7626_s6_serial_capture #(
       sample_word_sync   <= {SAMPLE_WIDTH{1'b0}};
       drop_first_pending <= (DROP_FIRST_SAMPLE != 0);
     end else begin
+      capture_ack_sync    <= {capture_ack_sync[1:0], capture_ack_toggle_dco};
+      if (read_start_align) begin
+        capture_req_sys <= 1'b1;
+      end else if (capture_ack_seen_sys) begin
+        capture_req_sys <= 1'b0;
+      end
+
       sample_valid       <= 1'b0;                       // 1 Clock-period Pulse
       sample_toggle_sync <= {sample_toggle_sync[2:0], sample_toggle_dco}; // using 4 layers(shifting bit) to store the toggle signal.
       sample_word_meta   <= sample_word_dco;            // meta means middle state
