@@ -134,6 +134,8 @@ module ad7626_day1_2_board_top #(
     .sample_data(hw_sample_data_s),
     .dco_dbg(hw_dco_dbg_s),
     .data_dbg(hw_data_dbg_s),
+
+    .read_start_align(read_start_s),
 	 
 	 // timing debug signal 2026.4.16
 	 .sample_word_dco_dbg(sample_word_dco_dbg),

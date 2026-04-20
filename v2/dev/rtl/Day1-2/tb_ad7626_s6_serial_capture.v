@@ -76,6 +76,7 @@ module tb_ad7626_s6_serial_capture;
 
   reg                         sys_clk;
   reg                         rstn;
+  reg                         read_start_align_r;
   reg                         dco_p_r;
   reg                         dco_n_r;
   reg                         d_p_r;
@@ -115,6 +116,11 @@ module tb_ad7626_s6_serial_capture;
     input [SAMPLE_WIDTH-1:0] word;
     integer i;
     begin
+      read_start_align_r = 1'b1;
+      @(posedge sys_clk);
+      #1;
+      read_start_align_r = 1'b0;
+
       for (i = SAMPLE_WIDTH - 1; i >= 0; i = i - 1) begin
         drive_data_bit(word[i]);
         #1;
@@ -137,6 +143,7 @@ module tb_ad7626_s6_serial_capture;
   ) dut (
     .sys_clk(sys_clk),
     .rstn(rstn),
+    .read_start_align(read_start_align_r),
     .dco_p(dco_p_r),
     .dco_n(dco_n_r),
     .d_p(d_p_r),
@@ -153,11 +160,12 @@ module tb_ad7626_s6_serial_capture;
   end
 
   initial begin
-    rstn    = 1'b0;
-    dco_p_r = 1'b0;
-    dco_n_r = 1'b1;
-    d_p_r   = 1'b0;
-    d_n_r   = 1'b1;
+    rstn              = 1'b0;
+    read_start_align_r = 1'b0;
+    dco_p_r           = 1'b0;
+    dco_n_r           = 1'b1;
+    d_p_r             = 1'b0;
+    d_n_r             = 1'b1;
     repeat (4) @(posedge sys_clk);
     rstn = 1'b1;
   end
