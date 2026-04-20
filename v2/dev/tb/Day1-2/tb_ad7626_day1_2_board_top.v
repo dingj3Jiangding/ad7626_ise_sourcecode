@@ -163,6 +163,9 @@ module tb_ad7626_day1_2_board_top;
   wire                        data_rise_dbg;
   wire [5:0]                  bit_count_dco_dbg;
   wire [SAMPLE_WIDTH-1:0]     shift_reg_dco_dbg;
+  wire                        capture_req_sys_dbg;
+  wire                        capture_active_dco_dbg;
+  wire                        capture_ack_toggle_dco_dbg;
 
   reg  [SAMPLE_WIDTH-1:0]     pending_word_r;
   reg  [SAMPLE_WIDTH-1:0]     active_shift_word_r;
@@ -217,11 +220,18 @@ module tb_ad7626_day1_2_board_top;
     .adc_dco_dbg(adc_dco_dbg),
     .cnv_dbg(cnv_dbg),
     .phase_dbg(phase_dbg),
+
+    // timing debug signal 2026.4.16
     .expected_data_dbg(expected_data_dbg),
     .sample_word_dco_dbg(sample_word_dco_dbg),
     .data_rise_dbg(data_rise_dbg),
     .bit_count_dco_dbg(bit_count_dco_dbg),
-    .shift_reg_dco_dbg(shift_reg_dco_dbg)
+    .shift_reg_dco_dbg(shift_reg_dco_dbg),
+
+    // read_start—bit_count misalign debug singal 2026.4.20
+    .capture_req_sys_dbg(capture_req_sys_dbg),
+    .capture_active_dco_dbg(capture_active_dco_dbg),
+    .capture_ack_toggle_dco_dbg(capture_ack_toggle_dco_dbg)
   );
 
   initial begin
