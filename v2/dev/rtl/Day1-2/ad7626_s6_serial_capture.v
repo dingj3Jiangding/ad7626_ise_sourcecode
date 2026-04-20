@@ -4,6 +4,7 @@ module ad7626_s6_serial_capture #(
   parameter integer SAMPLE_WIDTH      = 16,
   parameter integer BIT_COUNT_WIDTH   = 6,
   parameter integer DROP_FIRST_SAMPLE = 1,
+  parameter integer FULL_CYCLE_CAPTURE = 1,
   parameter         DIFF_TERM         = "TRUE"
 ) (
   input  wire                     sys_clk,
@@ -52,6 +53,8 @@ module ad7626_s6_serial_capture #(
   reg                      capture_req_seen_dco;
   // DCO-domain flag: currently capturing one word.
   reg                      capture_active_dco;
+  // DCO-domain one-cycle arm for the experimental full-cycle pipeline.
+  reg                      capture_arm_dco;
   // DCO-domain ack toggle for request consumption.
   reg                      capture_ack_toggle_dco;
   // Sys-domain synchronizer for the ack toggle.
@@ -112,45 +115,95 @@ module ad7626_s6_serial_capture #(
   );
 
 
-  // dco clock field, falling edge 
-  always @(negedge dco_clk_s or negedge rstn) begin
-    if (!rstn) begin
-      shift_reg_dco        <= {SAMPLE_WIDTH{1'b0}};
-      sample_word_dco      <= {SAMPLE_WIDTH{1'b0}};
-      bit_count_dco        <= {BIT_COUNT_WIDTH{1'b0}};
-      sample_toggle_dco    <= 1'b0;
-      capture_req_seen_dco <= 1'b0;
-      capture_active_dco   <= 1'b0;
-      capture_ack_toggle_dco <= 1'b0;
-    end else begin
-      if (!capture_req_sys) begin
-        capture_req_seen_dco <= 1'b0;
-      end
-
-      if (!capture_active_dco) begin
-        if (!capture_req_seen_dco && capture_req_sys) begin
-          shift_reg_dco        <= {{(SAMPLE_WIDTH-1){1'b0}}, data_rise_s};
-          bit_count_dco        <= {{(BIT_COUNT_WIDTH-1){1'b0}}, 1'b1};
-          capture_req_seen_dco <= 1'b1;
-          capture_active_dco   <= 1'b1;
-          capture_ack_toggle_dco <= ~capture_ack_toggle_dco;
-        end
-      end else begin
-        shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
-
-        if (bit_count_dco == (SAMPLE_WIDTH - 1)) begin
-          sample_word_dco    <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
-          sample_toggle_dco  <= ~sample_toggle_dco;
-          bit_count_dco      <= {BIT_COUNT_WIDTH{1'b0}};
-          capture_active_dco <= 1'b0;
+  generate
+    if (FULL_CYCLE_CAPTURE != 0) begin : gen_full_cycle_capture
+      // Experimental mode: consume IDDR2.Q0 on the next rising DCO edge so
+      // the fabric path becomes rise-to-rise instead of rise-to-fall.
+      always @(posedge dco_clk_s or negedge rstn) begin
+        if (!rstn) begin
+          shift_reg_dco          <= {SAMPLE_WIDTH{1'b0}};
+          sample_word_dco        <= {SAMPLE_WIDTH{1'b0}};
+          bit_count_dco          <= {BIT_COUNT_WIDTH{1'b0}};
+          sample_toggle_dco      <= 1'b0;
+          capture_req_seen_dco   <= 1'b0;
+          capture_active_dco     <= 1'b0;
+          capture_arm_dco        <= 1'b0;
+          capture_ack_toggle_dco <= 1'b0;
         end else begin
-          bit_count_dco <= bit_count_dco + 1'b1;
+          if (!capture_req_sys) begin
+            capture_req_seen_dco <= 1'b0;
+          end
+
+          if (capture_arm_dco) begin
+            shift_reg_dco      <= {{(SAMPLE_WIDTH-1){1'b0}}, data_rise_s};
+            bit_count_dco      <= {{(BIT_COUNT_WIDTH-1){1'b0}}, 1'b1};
+            capture_active_dco <= 1'b1;
+            capture_arm_dco    <= 1'b0;
+          end else if (!capture_active_dco) begin
+            if (!capture_req_seen_dco && capture_req_sys) begin
+              shift_reg_dco          <= {SAMPLE_WIDTH{1'b0}};
+              bit_count_dco          <= {BIT_COUNT_WIDTH{1'b0}};
+              capture_req_seen_dco   <= 1'b1;
+              capture_arm_dco        <= 1'b1;
+              capture_ack_toggle_dco <= ~capture_ack_toggle_dco;
+            end
+          end else begin
+            shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
+
+            if (bit_count_dco == (SAMPLE_WIDTH - 1)) begin
+              sample_word_dco    <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
+              sample_toggle_dco  <= ~sample_toggle_dco;
+              bit_count_dco      <= {BIT_COUNT_WIDTH{1'b0}};
+              capture_active_dco <= 1'b0;
+            end else begin
+              bit_count_dco <= bit_count_dco + 1'b1;
+            end
+          end
+        end
+      end
+    end else begin : gen_half_cycle_capture
+      // Current production path: consume IDDR2.Q0 on the falling DCO edge.
+      always @(negedge dco_clk_s or negedge rstn) begin
+        if (!rstn) begin
+          shift_reg_dco          <= {SAMPLE_WIDTH{1'b0}};
+          sample_word_dco        <= {SAMPLE_WIDTH{1'b0}};
+          bit_count_dco          <= {BIT_COUNT_WIDTH{1'b0}};
+          sample_toggle_dco      <= 1'b0;
+          capture_req_seen_dco   <= 1'b0;
+          capture_active_dco     <= 1'b0;
+          capture_arm_dco        <= 1'b0;
+          capture_ack_toggle_dco <= 1'b0;
+        end else begin
+          if (!capture_req_sys) begin
+            capture_req_seen_dco <= 1'b0;
+          end
+
+          if (!capture_active_dco) begin
+            if (!capture_req_seen_dco && capture_req_sys) begin
+              shift_reg_dco          <= {{(SAMPLE_WIDTH-1){1'b0}}, data_rise_s};
+              bit_count_dco          <= {{(BIT_COUNT_WIDTH-1){1'b0}}, 1'b1};
+              capture_req_seen_dco   <= 1'b1;
+              capture_active_dco     <= 1'b1;
+              capture_ack_toggle_dco <= ~capture_ack_toggle_dco;
+            end
+          end else begin
+            shift_reg_dco <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
+
+            if (bit_count_dco == (SAMPLE_WIDTH - 1)) begin
+              sample_word_dco    <= {shift_reg_dco[SAMPLE_WIDTH-2:0], data_rise_s};
+              sample_toggle_dco  <= ~sample_toggle_dco;
+              bit_count_dco      <= {BIT_COUNT_WIDTH{1'b0}};
+              capture_active_dco <= 1'b0;
+            end else begin
+              bit_count_dco <= bit_count_dco + 1'b1;
+            end
+          end
         end
       end
     end
-  end
+  endgenerate
 
-	assign sample_word_dco_dbg = sample_word_dco;
+  assign sample_word_dco_dbg = sample_word_dco;
 	
   // Cross Clock Domain transfer
   always @(posedge sys_clk or negedge rstn) begin

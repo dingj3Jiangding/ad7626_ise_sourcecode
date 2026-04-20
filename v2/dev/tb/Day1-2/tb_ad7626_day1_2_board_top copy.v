@@ -123,12 +123,13 @@ endmodule
 module tb_ad7626_day1_2_board_top;
 
   localparam integer SAMPLE_WIDTH              = 16;
+  localparam integer FULL_CYCLE_CAPTURE        = 1;
   localparam integer TARGET_VALID_SAMPLES      = 16;
   localparam integer CNV_PERIOD_CYCLES         = 25;
   localparam integer CNV_HIGH_CYCLES           = 5;
   localparam integer MSB_WAIT_CYCLES           = 15;
   localparam integer READ_START_CYCLES         = 15;
-  localparam integer READ_PULSE_CYCLES         = 16;
+  localparam integer READ_PULSE_CYCLES         = 17;
   localparam integer TCLKL_CYCLES              = 10;
   localparam integer READ_HEAD_CYCLES          = CNV_PERIOD_CYCLES - READ_START_CYCLES;
   localparam integer READ_TAIL_CYCLES          = READ_PULSE_CYCLES - READ_HEAD_CYCLES;
@@ -185,7 +186,8 @@ module tb_ad7626_day1_2_board_top;
     .READ_START_CYCLES(READ_START_CYCLES),
     .READ_PULSE_CYCLES(READ_PULSE_CYCLES),
     .TCLKL_CYCLES(TCLKL_CYCLES),
-    .DROP_FIRST_SAMPLE(1)
+    .DROP_FIRST_SAMPLE(1),
+    .FULL_CYCLE_CAPTURE(FULL_CYCLE_CAPTURE)
   ) dut (
     .sys_clk_250(sys_clk_250),
     .rstn(rstn),

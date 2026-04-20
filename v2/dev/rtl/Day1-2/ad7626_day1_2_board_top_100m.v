@@ -8,9 +8,10 @@ module ad7626_day1_2_board_top_100m #(
   parameter integer CNV_HIGH_CYCLES     = 5,
   parameter integer MSB_WAIT_CYCLES     = 15,
   parameter integer READ_START_CYCLES   = 15,
-  parameter integer READ_PULSE_CYCLES   = 16,
+  parameter integer READ_PULSE_CYCLES   = 17,
   parameter integer TCLKL_CYCLES        = 10,
   parameter integer DROP_FIRST_SAMPLE   = 1,
+  parameter integer FULL_CYCLE_CAPTURE  = 1,
   parameter         DIFF_TERM           = "TRUE"
 ) (
   input  wire                         sys_clk_100,
@@ -66,6 +67,7 @@ module ad7626_day1_2_board_top_100m #(
     .READ_PULSE_CYCLES(READ_PULSE_CYCLES),
     .TCLKL_CYCLES(TCLKL_CYCLES),
     .DROP_FIRST_SAMPLE(DROP_FIRST_SAMPLE),
+    .FULL_CYCLE_CAPTURE(FULL_CYCLE_CAPTURE),
     .DIFF_TERM(DIFF_TERM)
   ) u_board_top_core (
     .sys_clk_250(clk_250_s),

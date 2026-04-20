@@ -15,6 +15,7 @@
 9. `09_ad7626_day1_2_board_top.md`
 10. `10_day1_2_overlap_read_fix.md`
 11. `11_day1_2_board_top_100m.md`
+12. `12_day1_2_static_timing_report.md`
 
 ## 本次文档风格
 

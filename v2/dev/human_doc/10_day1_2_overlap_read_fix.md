@@ -51,9 +51,9 @@ cycle N+1:
 
 1. 一个系统周期是 `4 ns`。
 2. `READ_START_CYCLES = 15`，所以当前周期后半段在 `60 ns` 处打开。
-3. `READ_PULSE_CYCLES = 16`，所以 burst 长度是 `64 ns`。
+3. `READ_PULSE_CYCLES = 17`，所以 burst 长度是 `68 ns`。
 4. 当前周期 head 长度是 `10` cycles，即 `40 ns`。
-5. 下一周期 tail 长度是 `6` cycles，即 `24 ns`。
+5. 下一周期 tail 长度是 `7` cycles，即 `28 ns`。
 
 ## 3. 为什么当前参数是合理的
 
@@ -65,7 +65,7 @@ cycle N+1:
 | `CNV_HIGH_CYCLES` | 5 | 20 ns |
 | `MSB_WAIT_CYCLES` | 15 | 60 ns |
 | `READ_START_CYCLES` | 15 | 60 ns |
-| `READ_PULSE_CYCLES` | 16 | 64 ns |
+| `READ_PULSE_CYCLES` | 17 | 68 ns |
 | `TCLKL_CYCLES` | 10 | 40 ns |
 
 有两个关键检查。
