@@ -45,10 +45,15 @@ module ad7626_day1_2_board_top #(
   output wire [SAMPLE_WIDTH-1:0]      expected_data_dbg,
   
   // timing debug signal 2026.4.16
-  output wire [SAMPLE_WIDTH-1:0]			sample_word_dco_dbg,
-  output wire 							data_rise_dbg,
+  output wire [SAMPLE_WIDTH-1:0]      sample_word_dco_dbg,
+  output wire                         data_rise_dbg,
   output wire [BIT_COUNT_WIDTH-1:0] bit_count_dco_dbg,
-  output wire [SAMPLE_WIDTH-1:0] shift_reg_dco_dbg
+  output wire [SAMPLE_WIDTH-1:0] shift_reg_dco_dbg,
+
+  // read_start—bit_count misalign debug singal 2026.4.20
+  output wire                         capture_req_sys_dbg,
+  output wire                         capture_active_dco_dbg,
+  output wire                         capture_ack_toggle_dco_dbg
 ) ;
 
   wire                        hw_mode_s;
@@ -136,12 +141,15 @@ module ad7626_day1_2_board_top #(
     .data_dbg(hw_data_dbg_s),
 
     .read_start_align(read_start_s),
-	 
-	 // timing debug signal 2026.4.16
-	 .sample_word_dco_dbg(sample_word_dco_dbg),
-	 .data_rise_dbg(data_rise_dbg),
-	 .bit_count_dco_dbg(bit_count_dco_dbg),
-	 .shift_reg_dco_dbg(shift_reg_dco_dbg)
+
+    .sample_word_dco_dbg(sample_word_dco_dbg),
+    .data_rise_dbg(data_rise_dbg),
+    .bit_count_dco_dbg(bit_count_dco_dbg),
+    .shift_reg_dco_dbg(shift_reg_dco_dbg),
+    // read_start—bit_count misalign debug singal 2026.4.20
+    .capture_req_sys_dbg(capture_req_sys_dbg),
+    .capture_active_dco_dbg(capture_active_dco_dbg),
+    .capture_ack_toggle_dco_dbg(capture_ack_toggle_dco_dbg)
   );
 
   ODDR2 #(

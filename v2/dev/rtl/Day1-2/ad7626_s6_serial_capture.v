@@ -22,9 +22,13 @@ module ad7626_s6_serial_capture #(
 
 //timing debug singal 2026.4.16
   output wire [SAMPLE_WIDTH-1:0] sample_word_dco_dbg,
-  output wire 							data_rise_dbg,
+  output wire                     data_rise_dbg,
   output wire [BIT_COUNT_WIDTH-1:0] bit_count_dco_dbg,
-  output wire [SAMPLE_WIDTH-1:0] shift_reg_dco_dbg
+  output wire [SAMPLE_WIDTH-1:0] shift_reg_dco_dbg,
+// read_start—bit_count misalign debug singal 2026.4.20
+  output wire                     capture_req_sys_dbg,
+  output wire                     capture_active_dco_dbg,
+  output wire                     capture_ack_toggle_dco_dbg
 );
 
   wire                    dco_clk_s;
@@ -59,6 +63,12 @@ module ad7626_s6_serial_capture #(
   assign data_rise_dbg = data_rise_s;
   assign shift_reg_dco_dbg = shift_reg_dco;
   assign bit_count_dco_dbg = bit_count_dco;
+
+// read_start—bit_count misalign debug singal 2026.4.20
+  assign capture_req_sys_dbg = capture_req_sys;
+  assign capture_active_dco_dbg = capture_active_dco;
+  assign capture_ack_toggle_dco_dbg = capture_ack_toggle_dco;
+
   assign capture_ack_seen_sys = capture_ack_sync[2] ^ capture_ack_sync[1];
 
   IBUFGDS #(
