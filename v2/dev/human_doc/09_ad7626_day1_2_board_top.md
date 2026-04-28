@@ -53,7 +53,7 @@ output wire mismatch_error
 
 1. `sample_*` 是系统侧真正关心的样本输出。
 2. `align_error` 用来标记帧与接收结果没对上。
-3. `mismatch_error` 只用于 fake 模式自检。
+3. `mismatch_error` 用来标记接收到的样本值和当前 `finish_word` 期望值不一致。
 
 ## 3. 为什么这里用 `ODDR2`
 

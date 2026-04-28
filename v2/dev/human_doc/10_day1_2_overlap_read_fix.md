@@ -270,6 +270,7 @@ MSB_WAIT = 60 ns
 2. fake 模式在 `read_start` 把 `start_word` 装入 `tx_shift`。
 3. fake 模式在 `read_done` 输出 `finish_word`。
 4. hw 模式在 `hw_sample_valid` 到来时，要求 `finish_valid = 1`，否则报 `align_error`。
+5. hw 模式在 `hw_sample_valid` 到来且 `finish_valid = 1` 时，如果 `hw_sample_data != finish_word`，则报 `mismatch_error`。
 
 这样建模的好处是：
 

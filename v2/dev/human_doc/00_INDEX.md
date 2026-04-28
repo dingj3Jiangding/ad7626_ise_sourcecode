@@ -16,6 +16,8 @@
 10. `10_day1_2_overlap_read_fix.md`
 11. `11_day1_2_board_top_100m.md`
 12. `12_day1_2_static_timing_report.md`
+13. `14_blackfin_ebiu_double_buffer_plan.md`
+14. `15_ebiu_double_buffer_implementation_plan.md`
 
 ## 本次文档风格
 
@@ -34,6 +36,7 @@
 - `ad7626_day1_2_timing_gen`：生成 AD7626 echoed-clock 读数周期的 `CNV` / `CLK` burst 窗口。
 - `ad7626_s6_serial_capture`：在 Spartan-6 上用 `DCO` 接收 `D` 并跨域输出 16bit 样本。
 - `ad7626_day1_2_board_top`：Day1-2 板级顶层，保留 fake/hw 双模式并导出上板调试信号。
+- `ad7626_day2_1_*`：Day2-1 阶段包装顶层，复用 Day1-2 采样链并作为双缓冲/EBIU 集成入口。
 
 ## Day1 上午验证目标
 
