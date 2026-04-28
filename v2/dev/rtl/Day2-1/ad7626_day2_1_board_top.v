@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module ad7626_day1_2_board_top #(
+module ad7626_day2_1_board_top #(
   parameter integer SAMPLE_WIDTH        = 16,
   parameter integer BIT_COUNT_WIDTH   = 6,
   parameter integer COUNTER_WIDTH       = 32,
@@ -106,7 +106,7 @@ module ad7626_day1_2_board_top #(
   assign align_error       = align_error_r;
   assign mismatch_error    = mismatch_error_r;
 
-  ad7626_day1_2_timing_gen #(
+  ad7626_day2_1_timing_gen #(
     .CNV_PERIOD_CYCLES(CNV_PERIOD_CYCLES),
     .CNV_HIGH_CYCLES(CNV_HIGH_CYCLES),
     .MSB_WAIT_CYCLES(MSB_WAIT_CYCLES),

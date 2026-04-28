@@ -30,12 +30,26 @@
   把板上 `100 MHz` 时钟转换成 Day1-2 内核使用的 `250 MHz`。
 - `rtl/Day1-2/ad7626_day1_2_board_top_100m.v`
   当前更适合上板的外层顶层，输入 `sys_clk_100`，内部再实例化 250 MHz 内核。
+- `rtl/Day2-1/ad7626_day2_1_timing_gen.v`
+  Day2-1 阶段顶层节拍包装，作为双缓冲阶段的时序入口，当前先沿用 Day1-2 的采样时序基线。
+- `rtl/Day2-1/ad7626_s6_serial_capture.v`
+  复用 Day1-2 的 source-synchronous 接收模块，继续作为 Day2-1 的采样前端。
+- `rtl/Day2-1/ad7626_day2_1_board_top.v`
+  Day2-1 的 250 MHz 阶段顶层，预留给 FPGA 双缓冲/EBIU 集成，当前保持 Day1-2 采样输出接口不变。
+- `rtl/Day2-1/ad7626_day2_1_clkgen_100m_to_250m.v`
+  Day2-1 外层时钟包装，命名与新阶段保持一致。
+- `rtl/Day2-1/ad7626_day2_1_board_top_100m.v`
+  Day2-1 更适合上板的外层顶层，作为后续双缓冲阶段的板级入口。
 - `constraints/ad7626_day1_2_board_top_template.ucf`
   板级约束模板，等待补实际引脚 `LOC`。
 - `tb/tb_ad7626_min_loopback.v`
   自检 testbench，出现对齐或数据错误会直接失败。
 - `tb/Day1-2/tb_ad7626_day1_2_board_top.v`
   Day1-2 硬件模式 testbench，内含 generic primitive stub 和简化 ADC 行为模型。
+- `tb/Day2-1/tb_ad7626_day2_1_board_top.v`
+  Day2-1 顶层 testbench，当前作为 renamed baseline，用于后续双缓冲阶段演进。
+- `tb/Day2-1/tb_ad7626_s6_serial_capture.v`
+  Day2-1 复用的接收模块 testbench。
 
 ## 运行方法
 
@@ -59,7 +73,8 @@ cd ad7626_ise_sourcecode/v2/dev/tb
 
 ## 下一步（Day1 下午之后）
 
-1. 当前板时钟已经按 `100 MHz` 处理，工程顶层建议改用 `ad7626_day1_2_board_top_100m`。
-2. 按原理图填写 `constraints/ad7626_day1_2_board_top_template.ucf` 的 `LOC`。
-3. 上板验证 `CNV`、`CLK`、`DCO`、`D` 与 `sample_valid`。
-4. 在硬件稳定后，再补更严格的时序约束和后续寄存器/采集链路。
+1. 当前板时钟已经按 `100 MHz` 处理，工程顶层建议继续保留 `ad7626_day1_2_board_top_100m` 作为稳定采样 baseline。
+2. `v2/dev/rtl/Day2-1` / `v2/dev/tb/Day2-1` 作为下一阶段目录，专门承载 FPGA 双缓冲与 EBIU 集成演进。
+3. 按原理图填写 `constraints/ad7626_day1_2_board_top_template.ucf` 的 `LOC`。
+4. 上板验证 `CNV`、`CLK`、`DCO`、`D` 与 `sample_valid`。
+5. 在硬件稳定后，再补更严格的时序约束和后续寄存器/采集链路。
