@@ -33,8 +33,6 @@ module ad7626_double_buffer #(
   reg                    buf1_free;
   reg [ADDR_WIDTH:0]     write_index;
 
-  integer i;
-
   initial begin
     if (HALF_BUFFER_DEPTH <= 0) begin
       $display("[DOUBLE_BUFFER][WARN] HALF_BUFFER_DEPTH should be greater than 0.");
@@ -85,7 +83,7 @@ module ad7626_double_buffer #(
 
         if (capture_enable && sample_valid) begin
           if (active_buf == 1'b0) begin
-            if (buf0_free) begin
+            if (buf0_free || ack_buf0) begin
               buf0_mem[write_index[ADDR_WIDTH-1:0]] <= sample_data;
 
               if (write_index == (HALF_BUFFER_DEPTH - 1)) begin
@@ -93,12 +91,9 @@ module ad7626_double_buffer #(
                 buf0_free       <= 1'b0;
                 half_word_count <= HALF_BUFFER_DEPTH[ADDR_WIDTH:0];
                 write_index     <= {(ADDR_WIDTH + 1){1'b0}};
-
-                if (buf1_free || ack_buf1) begin
-                  active_buf <= 1'b1;
-                end else begin
-                  overrun <= 1'b1;
-                end
+                // Advance ownership to the other half immediately. If it is
+                // still busy, the next sample will raise overrun.
+                active_buf      <= 1'b1;
               end else begin
                 write_index     <= write_index + 1'b1;
                 half_word_count <= write_index + 1'b1;
@@ -107,7 +102,7 @@ module ad7626_double_buffer #(
               overrun <= 1'b1;
             end
           end else begin
-            if (buf1_free) begin
+            if (buf1_free || ack_buf1) begin
               buf1_mem[write_index[ADDR_WIDTH-1:0]] <= sample_data;
 
               if (write_index == (HALF_BUFFER_DEPTH - 1)) begin
@@ -115,12 +110,7 @@ module ad7626_double_buffer #(
                 buf1_free       <= 1'b0;
                 half_word_count <= HALF_BUFFER_DEPTH[ADDR_WIDTH:0];
                 write_index     <= {(ADDR_WIDTH + 1){1'b0}};
-
-                if (buf0_free || ack_buf0) begin
-                  active_buf <= 1'b0;
-                end else begin
-                  overrun <= 1'b1;
-                end
+                active_buf      <= 1'b0;
               end else begin
                 write_index     <= write_index + 1'b1;
                 half_word_count <= write_index + 1'b1;
