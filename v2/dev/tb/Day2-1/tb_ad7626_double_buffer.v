@@ -51,33 +51,37 @@ module tb_ad7626_double_buffer;
     .half_word_count(half_word_count)
   );
 
+  // Drive stimuli on negedge so the DUT sees stable inputs on posedge.
   task send_sample;
     input [SAMPLE_WIDTH-1:0] value;
     begin
+      @(negedge clk);
+      sample_valid = 1'b1;
+      sample_data  = value;
       @(posedge clk);
-      sample_valid <= 1'b1;
-      sample_data  <= value;
-      @(posedge clk);
-      sample_valid <= 1'b0;
-      sample_data  <= {SAMPLE_WIDTH{1'b0}};
+      @(negedge clk);
+      sample_valid = 1'b0;
+      sample_data  = {SAMPLE_WIDTH{1'b0}};
     end
   endtask
 
   task pulse_ack0;
     begin
+      @(negedge clk);
+      ack_buf0 = 1'b1;
       @(posedge clk);
-      ack_buf0 <= 1'b1;
-      @(posedge clk);
-      ack_buf0 <= 1'b0;
+      @(negedge clk);
+      ack_buf0 = 1'b0;
     end
   endtask
 
   task pulse_ack1;
     begin
+      @(negedge clk);
+      ack_buf1 = 1'b1;
       @(posedge clk);
-      ack_buf1 <= 1'b1;
-      @(posedge clk);
-      ack_buf1 <= 1'b0;
+      @(negedge clk);
+      ack_buf1 = 1'b0;
     end
   endtask
 
@@ -85,9 +89,10 @@ module tb_ad7626_double_buffer;
     input integer addr;
     input [SAMPLE_WIDTH-1:0] expected;
     begin
+      @(negedge clk);
+      buf0_raddr = addr[ADDR_WIDTH-1:0];
       @(posedge clk);
-      buf0_raddr <= addr[ADDR_WIDTH-1:0];
-      @(posedge clk);
+      @(negedge clk);
       if (buf0_rdata !== expected) begin
         $display("[TB_DOUBLE_BUFFER][FAIL] BUF0[%0d] = 0x%0h expected 0x%0h",
                  addr, buf0_rdata, expected);
@@ -100,9 +105,10 @@ module tb_ad7626_double_buffer;
     input integer addr;
     input [SAMPLE_WIDTH-1:0] expected;
     begin
+      @(negedge clk);
+      buf1_raddr = addr[ADDR_WIDTH-1:0];
       @(posedge clk);
-      buf1_raddr <= addr[ADDR_WIDTH-1:0];
-      @(posedge clk);
+      @(negedge clk);
       if (buf1_rdata !== expected) begin
         $display("[TB_DOUBLE_BUFFER][FAIL] BUF1[%0d] = 0x%0h expected 0x%0h",
                  addr, buf1_rdata, expected);
